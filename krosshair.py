@@ -6,7 +6,6 @@ from tkinter import ttk
 from modules.connection import KBConnection
 from modules.inventory import Inventory
 from modules.lib import KrosshairViewers
-
 class Krosshair(KBConnection, Inventory):
     """Krosshair using official loader connection logic."""
     

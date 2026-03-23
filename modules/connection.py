@@ -3,7 +3,7 @@ from tkinter import ttk
 from loader import attachWrapper, Emulators
 from modules.client import N64MemoryClient
 from modules.memory_map import DK64MemoryMap
-from modules.lib import KrossbonesLib
+from modules.lib import KrosshairLib
 
 def connect_to_emulator():
     """Connect to any available emulator using the official loader system."""
@@ -33,7 +33,7 @@ def connect_to_emulator():
     # No emulator found
     return None
 
-class KBConnection(KrossbonesLib):
+class KBConnection(KrosshairLib):
     def __init__(self):
         self.memory_client = None
         self.memory_pointer = 0

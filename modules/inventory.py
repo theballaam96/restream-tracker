@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 from modules.memory_map import DK64MemoryMap
-from modules.lib import KrossbonesLib
-from modules.core import KrossbonesCore
+from modules.lib import KrosshairLib, KrosshairState, KrosshairViewers
+from modules.core import KrosshairCore
 from enum import IntEnum, auto
 from typing import Union
 from PIL import Image, ImageTk, ImageEnhance, ImageFont, ImageDraw
@@ -21,7 +21,7 @@ class CountStructItem:
         self.size = size
         self.bit = bit
 
-    def getCount(self, core: KrossbonesCore):
+    def getCount(self, core: KrosshairCore):
         populated = core.memory_client.read_u8(DK64MemoryMap.count_struct_pointer) == 0x80
         if not populated:
             return 0
@@ -46,7 +46,7 @@ class KongBaseItem:
         self.is_bitfield = is_bitfield
         self.bit = bit
 
-    def getCount(self, core: KrossbonesCore):
+    def getCount(self, core: KrosshairCore):
         base = 0x807FC950 + (0x5E * self.kong) + self.offset
         val = 0
         if self.size == 1:
@@ -63,20 +63,21 @@ class FlagItem:
     def __init__(self, flag_index: int):
         self.flag_index = flag_index
 
-    def getCount(self, core: KrossbonesCore):
+    def getCount(self, core: KrosshairCore):
         flag_offset = self.flag_index >> 3
         flag_shift = self.flag_index & 7
         val = core.memory_client.read_u8(0x807ECEA8 + flag_offset)
         return (val >> flag_shift) & 1
 
 class Item:
-    def __init__(self, name: str, item_type: ItemTypes, packet: Union[CountStructItem, KongBaseItem, FlagItem]):
+    def __init__(self, name: str, item_type: ItemTypes, packet: Union[CountStructItem, KongBaseItem, FlagItem], attr: str):
         self.name = name
         self.item_type = item_type
         self.packet = packet
+        self.attr = attr
         self.count = 0
 
-    def getCount(self, core: KrossbonesCore) -> int:
+    def getCount(self, core: KrosshairCore) -> int:
         self.count = self.packet.getCount(core)
         return self.count
 
@@ -326,378 +327,374 @@ class Controls(tk.Frame):
 COMPACT_SCALING = 7 / 8
 WIDE_SCALING = 7 / 4
 
-class Inventory(KrossbonesCore, KrossbonesLib):
+class Inventory(KrosshairCore, KrosshairLib):
     def __init__(self):
         """Initialize with given parameters."""
 
         self.layer = None
         self.items_frame = None
+        self.states: list[KrosshairState] = []
+        self.selected_state_index = 0
+        self.active_state = self.states[self.selected_state_index]
         # Item database - separated into moves and items
         self.item_data = [
             # Kongs
-            Item("Donkey Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 0)),
-            Item("Diddy Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 1)),
-            Item("Lanky Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 2)),
-            Item("Tiny Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 3)),
-            Item("Chunky Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 4)),
+            Item("Donkey Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 0), "dk"),
+            Item("Diddy Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 1), "diddy"),
+            Item("Lanky Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 2), "lanky"),
+            Item("Tiny Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 3), "tiny"),
+            Item("Chunky Kong", ItemTypes.CountStruct, CountStructItem(0xB, 1, True, 4), "chunky"),
             # All Kong Moves
-            Item("Barrel Throwing", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 5)),
-            Item("Orange Throwing", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 6)),
-            Item("Vine Swinging", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 4)),
-            Item("Diving", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 7)),
-            Item("Climbing", ItemTypes.Flag, FlagItem(0x29F)),
-            Item("Camera", ItemTypes.Flag, FlagItem(0x2FD)),
-            Item("Shockwave", ItemTypes.Flag, FlagItem(0x179)),
-            Item("Slam", ItemTypes.KongBase, KongBaseItem(0, 1, 1, False)),
-            Item("Homing", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 1)),
-            Item("Sniper", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 2)),
+            Item("Barrel Throwing", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 5), "barrels"),
+            Item("Orange Throwing", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 6), "orange"),
+            Item("Vine Swinging", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 4), "vine"),
+            Item("Diving", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 7), "dive"),
+            Item("Climbing", ItemTypes.Flag, FlagItem(0x29F), "climb"),
+            Item("Camera", ItemTypes.Flag, FlagItem(0x2FD), "camera"),
+            Item("Shockwave", ItemTypes.Flag, FlagItem(0x179), "shockwave"),
+            Item("Slam", ItemTypes.KongBase, KongBaseItem(0, 1, 1, False), "slam"),
+            Item("Homing", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 1), "homing"),
+            Item("Sniper", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 2), "sniper"),
             # Guns
-            Item("Coconut", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 0)),
-            Item("Peanut", ItemTypes.KongBase, KongBaseItem(1, 2, 1, True, 0)),
-            Item("Grape", ItemTypes.KongBase, KongBaseItem(2, 2, 1, True, 0)),
-            Item("Feather", ItemTypes.KongBase, KongBaseItem(3, 2, 1, True, 0)),
-            Item("Pineapple", ItemTypes.KongBase, KongBaseItem(4, 2, 1, True, 0)),
+            Item("Coconut", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 0), "coconut"),
+            Item("Peanut", ItemTypes.KongBase, KongBaseItem(1, 2, 1, True, 0), "peanut"),
+            Item("Grape", ItemTypes.KongBase, KongBaseItem(2, 2, 1, True, 0), "grape"),
+            Item("Feather", ItemTypes.KongBase, KongBaseItem(3, 2, 1, True, 0), "feather"),
+            Item("Pineapple", ItemTypes.KongBase, KongBaseItem(4, 2, 1, True, 0), "pineapple"),
             # Instruments
-            Item("Bongos", ItemTypes.KongBase, KongBaseItem(0, 4, 1, True, 0)),
-            Item("Guitar", ItemTypes.KongBase, KongBaseItem(1, 4, 1, True, 0)),
-            Item("Trombone", ItemTypes.KongBase, KongBaseItem(2, 4, 1, True, 0)),
-            Item("Sax", ItemTypes.KongBase, KongBaseItem(3, 4, 1, True, 0)),
-            Item("Triangle", ItemTypes.KongBase, KongBaseItem(4, 4, 1, True, 0)),
+            Item("Bongos", ItemTypes.KongBase, KongBaseItem(0, 4, 1, True, 0), "bongos"),
+            Item("Guitar", ItemTypes.KongBase, KongBaseItem(1, 4, 1, True, 0), "guitar"),
+            Item("Trombone", ItemTypes.KongBase, KongBaseItem(2, 4, 1, True, 0), "trombone"),
+            Item("Sax", ItemTypes.KongBase, KongBaseItem(3, 4, 1, True, 0), "sax"),
+            Item("Triangle", ItemTypes.KongBase, KongBaseItem(4, 4, 1, True, 0), "triangle"),
             # Special Moves
-            Item("Blast", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 0)),
-            Item("Charge", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 0)),
-            Item("Orangstand", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 0)),
-            Item("Mini", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 0)),
-            Item("Hunky", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 0)),
-            Item("Strong", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 1)),
-            Item("Rocket", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 1)),
-            Item("Balloon", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 1)),
-            Item("Twirl", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 1)),
-            Item("Punch", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 1)),
-            Item("Grab", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 2)),
-            Item("Spring", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 2)),
-            Item("Sprint", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 2)),
-            Item("Port", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 2)),
-            Item("Gone", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 2)),
+            Item("Blast", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 0), "blast"),
+            Item("Charge", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 0), "charge"),
+            Item("Orangstand", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 0), "ostand"),
+            Item("Mini", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 0), "mini"),
+            Item("Hunky", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 0), "hunky"),
+            Item("Strong", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 1), "strong"),
+            Item("Rocket", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 1), "rocket"),
+            Item("Balloon", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 1), "balloon"),
+            Item("Twirl", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 1), "twirl"),
+            Item("Punch", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 1), "punch"),
+            Item("Grab", ItemTypes.KongBase, KongBaseItem(0, 0, 1, True, 2), "grab"),
+            Item("Spring", ItemTypes.KongBase, KongBaseItem(1, 0, 1, True, 2), "spring"),
+            Item("Sprint", ItemTypes.KongBase, KongBaseItem(2, 0, 1, True, 2), "osprint"),
+            Item("Port", ItemTypes.KongBase, KongBaseItem(3, 0, 1, True, 2), "port"),
+            Item("Gone", ItemTypes.KongBase, KongBaseItem(4, 0, 1, True, 2), "gone"),
             # Keys
-            Item("Key 1", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 0)),
-            Item("Key 2", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 1)),
-            Item("Key 3", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 2)),
-            Item("Key 4", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 3)),
-            Item("Key 5", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 4)),
-            Item("Key 6", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 5)),
-            Item("Key 7", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 6)),
-            Item("Key 8", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 7)),
+            Item("Key 1", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 0), "key_1"),
+            Item("Key 2", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 1), "key_2"),
+            Item("Key 3", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 2), "key_3"),
+            Item("Key 4", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 3), "key_4"),
+            Item("Key 5", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 4), "key_5"),
+            Item("Key 6", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 5), "key_6"),
+            Item("Key 7", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 6), "key_7"),
+            Item("Key 8", ItemTypes.CountStruct, CountStructItem(0xA, 1, True, 7), "key_8"),
             # Blueprints
-            Item("DK Blueprints", ItemTypes.CountStruct, CountStructItem(0x0, 1, False)),
-            Item("Diddy Blueprints", ItemTypes.CountStruct, CountStructItem(0x1, 1, False)),
-            Item("Lanky Blueprints", ItemTypes.CountStruct, CountStructItem(0x2, 1, False)),
-            Item("Tiny Blueprints", ItemTypes.CountStruct, CountStructItem(0x3, 1, False)),
-            Item("Chunky Blueprints", ItemTypes.CountStruct, CountStructItem(0x4, 1, False)),
-            Item("DK Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x19, 1, False)),
-            Item("Diddy Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1A, 1, False)),
-            Item("Lanky Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1B, 1, False)),
-            Item("Tiny Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1C, 1, False)),
-            Item("Chunky Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1D, 1, False)),
+            Item("DK Blueprints", ItemTypes.CountStruct, CountStructItem(0x0, 1, False), "dk_bps"),
+            Item("Diddy Blueprints", ItemTypes.CountStruct, CountStructItem(0x1, 1, False), "diddy_bps"),
+            Item("Lanky Blueprints", ItemTypes.CountStruct, CountStructItem(0x2, 1, False), "lanky_bps"),
+            Item("Tiny Blueprints", ItemTypes.CountStruct, CountStructItem(0x3, 1, False), "tiny_bps"),
+            Item("Chunky Blueprints", ItemTypes.CountStruct, CountStructItem(0x4, 1, False), "chunky_bps"),
+            Item("DK Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x19, 1, False), "dk_turns"),
+            Item("Diddy Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1A, 1, False), "diddy_turns"),
+            Item("Lanky Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1B, 1, False), "lanky_turns"),
+            Item("Tiny Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1C, 1, False), "tiny_turns"),
+            Item("Chunky Turn-Ins", ItemTypes.CountStruct, CountStructItem(0x1D, 1, False), "chunky_turns"),
             # Shopkeepers
-            Item("Cranky", ItemTypes.Flag, FlagItem(0x3C2)),
-            Item("Funky", ItemTypes.Flag, FlagItem(0x3C3)),
-            Item("Candy", ItemTypes.Flag, FlagItem(0x3C4)),
-            Item("Snide", ItemTypes.Flag, FlagItem(0x3C5)),
+            Item("Cranky", ItemTypes.Flag, FlagItem(0x3C2), "cranky"),
+            Item("Funky", ItemTypes.Flag, FlagItem(0x3C3), "funky"),
+            Item("Candy", ItemTypes.Flag, FlagItem(0x3C4), "candy"),
+            Item("Snide", ItemTypes.Flag, FlagItem(0x3C5), "snide"),
             # Items
-            Item("Bean", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 5)),
-            Item("Nintendo Coin", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 7)),
-            Item("Rareware Coin", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 6)),
-            Item("Crowns", ItemTypes.CountStruct, CountStructItem(0xC, 1, False)),
-            Item("Medals", ItemTypes.CountStruct, CountStructItem(0xE, 1, False)),
-            Item("Pearls", ItemTypes.CountStruct, CountStructItem(0xF, 1, False)),
-            Item("Fairies", ItemTypes.CountStruct, CountStructItem(0x10, 1, False)),
-            Item("Rainbow Coins", ItemTypes.CountStruct, CountStructItem(0x11, 1, False)),
+            Item("Bean", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 5), "bean"),
+            Item("Nintendo Coin", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 7), "nintendo_coin"),
+            Item("Rareware Coin", ItemTypes.CountStruct, CountStructItem(0xD, 1, True, 6), "rareware_coin"),
+            Item("Crowns", ItemTypes.CountStruct, CountStructItem(0xC, 1, False), "crowns"),
+            Item("Medals", ItemTypes.CountStruct, CountStructItem(0xE, 1, False), "medals"),
+            Item("Pearls", ItemTypes.CountStruct, CountStructItem(0xF, 1, False), "pearls"),
+            Item("Fairies", ItemTypes.CountStruct, CountStructItem(0x10, 1, False), "fairies"),
+            Item("Rainbow Coins", ItemTypes.CountStruct, CountStructItem(0x11, 1, False), "rainbow_coins"),
         ]
 
         self.icons = [
             Icon("Donkey Kong", 0, 0, [
-                IconCondition("dk/donkey.png", lambda: self.getCount("Donkey Kong") == 0, True),
-                IconCondition("dk/donkey.png", lambda: self.getCount("Donkey Kong") != 0, False),
+                IconCondition("dk/donkey.png", lambda: not self.active_state.dk, True),
+                IconCondition("dk/donkey.png", lambda: self.active_state.dk, False),
             ]),
             Icon("Diddy Kong", 0, 1, [
-                IconCondition("diddy/diddy.png", lambda: self.getCount("Diddy Kong") == 0, True),
-                IconCondition("diddy/diddy.png", lambda: self.getCount("Diddy Kong") != 0, False),
+                IconCondition("diddy/diddy.png", lambda: not self.active_state.diddy, True),
+                IconCondition("diddy/diddy.png", lambda: self.active_state.diddy, False),
             ]),
             Icon("Lanky Kong", 0, 2, [
-                IconCondition("lanky/lanky.png", lambda: self.getCount("Lanky Kong") == 0, True),
-                IconCondition("lanky/lanky.png", lambda: self.getCount("Lanky Kong") != 0, False),
+                IconCondition("lanky/lanky.png", lambda: not self.active_state.lanky, True),
+                IconCondition("lanky/lanky.png", lambda: self.active_state.lanky, False),
             ]),
             Icon("Tiny Kong", 0, 3, [
-                IconCondition("tiny/tiny.png", lambda: self.getCount("Tiny Kong") == 0, True),
-                IconCondition("tiny/tiny.png", lambda: self.getCount("Tiny Kong") != 0, False),
+                IconCondition("tiny/tiny.png", lambda: not self.active_state.tiny, True),
+                IconCondition("tiny/tiny.png", lambda: self.active_state.tiny, False),
             ]),
             Icon("Chunky Kong", 0, 4, [
-                IconCondition("chunky/chunky.png", lambda: self.getCount("Chunky Kong") == 0, True),
-                IconCondition("chunky/chunky.png", lambda: self.getCount("Chunky Kong") != 0, False),
+                IconCondition("chunky/chunky.png", lambda: not self.active_state.chunky, True),
+                IconCondition("chunky/chunky.png", lambda: self.active_state.chunky, False),
             ]),
             Icon("Barrel Throwing", 3 * COMPACT_SCALING, 5, [
-                IconCondition("all_kong/barrel_throwing.png", lambda: self.getCount("Barrel Throwing") == 0, True),
-                IconCondition("all_kong/barrel_throwing.png", lambda: self.getCount("Barrel Throwing") != 0, False),
+                IconCondition("all_kong/barrel_throwing.png", lambda: not self.active_state.barrels, True),
+                IconCondition("all_kong/barrel_throwing.png", lambda: self.active_state.barrels, False),
             ], is_compact=True),
             Icon("Orange Throwing", 2 * COMPACT_SCALING, 5, [
-                IconCondition("all_kong/orange_throwing.png", lambda: self.getCount("Orange Throwing") == 0, True),
-                IconCondition("all_kong/orange_throwing.png", lambda: self.getCount("Orange Throwing") != 0, False),
+                IconCondition("all_kong/orange_throwing.png", lambda: not self.active_state.orange, True),
+                IconCondition("all_kong/orange_throwing.png", lambda: self.active_state.orange, False),
             ], is_compact=True),
             Icon("Vine Swinging", 4 * COMPACT_SCALING, 5, [
-                IconCondition("all_kong/vine_swinging.png", lambda: self.getCount("Vine Swinging") == 0, True),
-                IconCondition("all_kong/vine_swinging.png", lambda: self.getCount("Vine Swinging") != 0, False),
+                IconCondition("all_kong/vine_swinging.png", lambda: not self.active_state.vine, True),
+                IconCondition("all_kong/vine_swinging.png", lambda: self.active_state.vine, False),
             ], is_compact=True),
             Icon("Diving", 1 * COMPACT_SCALING, 5, [
-                IconCondition("all_kong/diving.png", lambda: self.getCount("Diving") == 0, True),
-                IconCondition("all_kong/diving.png", lambda: self.getCount("Diving") != 0, False),
+                IconCondition("all_kong/diving.png", lambda: not self.active_state.dive, True),
+                IconCondition("all_kong/diving.png", lambda: self.active_state.dive, False),
             ], is_compact=True),
             Icon("Climbing", 5 * COMPACT_SCALING, 5, [
-                IconCondition("all_kong/climbing.png", lambda: self.getCount("Climbing") == 0, True),
-                IconCondition("all_kong/climbing.png", lambda: self.getCount("Climbing") != 0, False),
+                IconCondition("all_kong/climbing.png", lambda: not self.active_state.climb, True),
+                IconCondition("all_kong/climbing.png", lambda: self.active_state.climb, False),
             ], is_compact=True),
             Icon("Camera_Shockwave", 6 * COMPACT_SCALING, 5, [
-                IconCondition("shockwave_camera/filmwave.png", lambda: self.getCount("Camera") == 0 and self.getCount("Shockwave") == 0, True),
-                IconCondition("shockwave_camera/filmwave.png", lambda: self.getCount("Camera") != 0 and self.getCount("Shockwave") != 0, False),
-                IconCondition("shockwave_camera/fairycamonly.png", lambda: self.getCount("Camera") != 0 and self.getCount("Shockwave") == 0, False),
-                IconCondition("shockwave_camera/shockwaveonly.png", lambda: self.getCount("Camera") == 0 and self.getCount("Shockwave") != 0, False),
+                IconCondition("shockwave_camera/filmwave.png", lambda: not self.active_state.camera and not self.active_state.shockwave, True),
+                IconCondition("shockwave_camera/filmwave.png", lambda: self.active_state.camera and self.active_state.shockwave, False),
+                IconCondition("shockwave_camera/fairycamonly.png", lambda: self.active_state.camera and not self.active_state.shockwave, False),
+                IconCondition("shockwave_camera/shockwaveonly.png", lambda: not self.active_state.camera and self.active_state.shockwave, False),
             ], is_compact=True),
             Icon("Slam", 0 * COMPACT_SCALING, 5, [
-                IconCondition("slam/slam1.png", lambda: self.getCount("Slam") < 1, True),
-                IconCondition("slam/slam1.png", lambda: self.getCount("Slam") == 1, False),
-                IconCondition("slam/slam2.png", lambda: self.getCount("Slam") == 2, False),
-                IconCondition("slam/slam3.png", lambda: self.getCount("Slam") > 2, False),
+                IconCondition("slam/slam1.png", lambda: self.active_state.slam < 1, True),
+                IconCondition("slam/slam1.png", lambda: self.active_state.slam == 1, False),
+                IconCondition("slam/slam2.png", lambda: self.active_state.slam == 2, False),
+                IconCondition("slam/slam3.png", lambda: self.active_state.slam > 2, False),
             ], is_compact=True),
             Icon("Homing_Sniper", 7 * COMPACT_SCALING, 5, [
-                IconCondition("homing_sniper/homingscope.png", lambda: self.getCount("Homing") == 0 and self.getCount("Sniper") == 0, True),
-                IconCondition("homing_sniper/homingscope.png", lambda: self.getCount("Homing") != 0 and self.getCount("Sniper") != 0, False),
-                IconCondition("homing_sniper/homingonly.png", lambda: self.getCount("Homing") != 0 and self.getCount("Sniper") == 0, False),
-                IconCondition("homing_sniper/scopeonly.png", lambda: self.getCount("Homing") == 0 and self.getCount("Sniper") != 0, False),
+                IconCondition("homing_sniper/homingscope.png", lambda: not self.active_state.homing and not self.active_state.sniper, True),
+                IconCondition("homing_sniper/homingscope.png", lambda: self.active_state.homing and self.active_state.sniper, False),
+                IconCondition("homing_sniper/homingonly.png", lambda: self.active_state.homing and not self.active_state.sniper, False),
+                IconCondition("homing_sniper/scopeonly.png", lambda: not self.active_state.homing and self.active_state.sniper, False),
             ], is_compact=True),
             Icon("Coconut", 1, 0, [
-                IconCondition("dk/dk_gun.png", lambda: self.getCount("Coconut") == 0, True),
-                IconCondition("dk/dk_gun.png", lambda: self.getCount("Coconut") != 0, False),
+                IconCondition("dk/dk_gun.png", lambda: not self.active_state.coconut, True),
+                IconCondition("dk/dk_gun.png", lambda: self.active_state.coconut, False),
             ]),
             Icon("Peanut", 1, 1, [
-                IconCondition("diddy/diddy_gun.png", lambda: self.getCount("Peanut") == 0, True),
-                IconCondition("diddy/diddy_gun.png", lambda: self.getCount("Peanut") != 0, False),
+                IconCondition("diddy/diddy_gun.png", lambda: not self.active_state.peanut, True),
+                IconCondition("diddy/diddy_gun.png", lambda: self.active_state.peanut, False),
             ]),
             Icon("Grape", 1, 2, [
-                IconCondition("lanky/lanky_gun.png", lambda: self.getCount("Grape") == 0, True),
-                IconCondition("lanky/lanky_gun.png", lambda: self.getCount("Grape") != 0, False),
+                IconCondition("lanky/lanky_gun.png", lambda: not self.active_state.grape, True),
+                IconCondition("lanky/lanky_gun.png", lambda: self.active_state.grape, False),
             ]),
             Icon("Feather", 1, 3, [
-                IconCondition("tiny/tiny_gun.png", lambda: self.getCount("Feather") == 0, True),
-                IconCondition("tiny/tiny_gun.png", lambda: self.getCount("Feather") != 0, False),
+                IconCondition("tiny/tiny_gun.png", lambda: not self.active_state.feather, True),
+                IconCondition("tiny/tiny_gun.png", lambda: self.active_state.feather, False),
             ]),
             Icon("Pineapple", 1, 4, [
-                IconCondition("chunky/chunky_gun.png", lambda: self.getCount("Pineapple") == 0, True),
-                IconCondition("chunky/chunky_gun.png", lambda: self.getCount("Pineapple") != 0, False),
+                IconCondition("chunky/chunky_gun.png", lambda: not self.active_state.pineapple, True),
+                IconCondition("chunky/chunky_gun.png", lambda: self.active_state.pineapple, False),
             ]),
             Icon("Bongos", 2, 0, [
-                IconCondition("dk/dk_inst.png", lambda: self.getCount("Bongos") == 0, True),
-                IconCondition("dk/dk_inst.png", lambda: self.getCount("Bongos") != 0, False),
+                IconCondition("dk/dk_inst.png", lambda: not self.active_state.bongos, True),
+                IconCondition("dk/dk_inst.png", lambda: self.active_state.bongos, False),
             ]),
             Icon("Guitar", 2, 1, [
-                IconCondition("diddy/diddy_inst.png", lambda: self.getCount("Guitar") == 0, True),
-                IconCondition("diddy/diddy_inst.png", lambda: self.getCount("Guitar") != 0, False),
+                IconCondition("diddy/diddy_inst.png", lambda: not self.active_state.guitar, True),
+                IconCondition("diddy/diddy_inst.png", lambda: self.active_state.guitar, False),
             ]),
             Icon("Trombone", 2, 2, [
-                IconCondition("lanky/lanky_inst.png", lambda: self.getCount("Trombone") == 0, True),
-                IconCondition("lanky/lanky_inst.png", lambda: self.getCount("Trombone") != 0, False),
+                IconCondition("lanky/lanky_inst.png", lambda: not self.active_state.trombone, True),
+                IconCondition("lanky/lanky_inst.png", lambda: self.active_state.trombone, False),
             ]),
             Icon("Sax", 2, 3, [
-                IconCondition("tiny/tiny_inst.png", lambda: self.getCount("Sax") == 0, True),
-                IconCondition("tiny/tiny_inst.png", lambda: self.getCount("Sax") != 0, False),
+                IconCondition("tiny/tiny_inst.png", lambda: not self.active_state.sax, True),
+                IconCondition("tiny/tiny_inst.png", lambda: self.active_state.sax, False),
             ]),
             Icon("Triangle", 2, 4, [
-                IconCondition("chunky/chunky_inst.png", lambda: self.getCount("Triangle") == 0, True),
-                IconCondition("chunky/chunky_inst.png", lambda: self.getCount("Triangle") != 0, False),
+                IconCondition("chunky/chunky_inst.png", lambda: not self.active_state.triangle, True),
+                IconCondition("chunky/chunky_inst.png", lambda: self.active_state.triangle, False),
             ]),
             Icon("Blast", 4, 0, [
-                IconCondition("dk/dkpad.png", lambda: self.getCount("Blast") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("dk/dkpad.png", lambda: self.getCount("Blast") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("dk/dkpad_c.png", lambda: self.getCount("Blast") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("dk/dkpad_c.png", lambda: self.getCount("Blast") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("dk/dkpad.png", lambda: not self.active_state.blast and not USE_COLOR_ICONS, True),
+                IconCondition("dk/dkpad.png", lambda: self.active_state.blast and not USE_COLOR_ICONS, False),
+                IconCondition("dk/dkpad_c.png", lambda: not self.active_state.blast and USE_COLOR_ICONS, True),
+                IconCondition("dk/dkpad_c.png", lambda: self.active_state.blast and USE_COLOR_ICONS, False),
             ]),
             Icon("Charge", 3, 1, [
-                IconCondition("diddy/diddy_move.png", lambda: self.getCount("Charge") == 0, True),
-                IconCondition("diddy/diddy_move.png", lambda: self.getCount("Charge") != 0, False),
+                IconCondition("diddy/diddy_move.png", lambda: not self.active_state.charge, True),
+                IconCondition("diddy/diddy_move.png", lambda: self.active_state.charge, False),
             ]),
             Icon("Orangstand", 3, 2, [
-                IconCondition("lanky/lanky_move.png", lambda: self.getCount("Orangstand") == 0, True),
-                IconCondition("lanky/lanky_move.png", lambda: self.getCount("Orangstand") != 0, False),
+                IconCondition("lanky/lanky_move.png", lambda: not self.active_state.ostand, True),
+                IconCondition("lanky/lanky_move.png", lambda: self.active_state.ostand, False),
             ]),
             Icon("Mini", 5, 3, [
-                IconCondition("tiny/tinybarrel.png", lambda: self.getCount("Mini") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("tiny/tinybarrel.png", lambda: self.getCount("Mini") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("tiny/tinybarrel_c.png", lambda: self.getCount("Mini") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("tiny/tinybarrel_c.png", lambda: self.getCount("Mini") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("tiny/tinybarrel.png", lambda: not self.active_state.mini and not USE_COLOR_ICONS, True),
+                IconCondition("tiny/tinybarrel.png", lambda: self.active_state.mini and not USE_COLOR_ICONS, False),
+                IconCondition("tiny/tinybarrel_c.png", lambda: not self.active_state.mini and USE_COLOR_ICONS, True),
+                IconCondition("tiny/tinybarrel_c.png", lambda: self.active_state.mini and USE_COLOR_ICONS, False),
             ]),
             Icon("Hunky", 5, 4, [
-                IconCondition("chunky/chunkybarrel.png", lambda: self.getCount("Hunky") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("chunky/chunkybarrel.png", lambda: self.getCount("Hunky") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("chunky/chunkybarrel_c.png", lambda: self.getCount("Hunky") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("chunky/chunkybarrel_c.png", lambda: self.getCount("Hunky") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("chunky/chunkybarrel.png", lambda: not self.active_state.hunky and not USE_COLOR_ICONS, True),
+                IconCondition("chunky/chunkybarrel.png", lambda: self.active_state.hunky and not USE_COLOR_ICONS, False),
+                IconCondition("chunky/chunkybarrel_c.png", lambda: not self.active_state.hunky and USE_COLOR_ICONS, True),
+                IconCondition("chunky/chunkybarrel_c.png", lambda: self.active_state.hunky and USE_COLOR_ICONS, False),
             ]),
             Icon("Strong", 5, 0, [
-                IconCondition("dk/dkbarrel.png", lambda: self.getCount("Strong") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("dk/dkbarrel.png", lambda: self.getCount("Strong") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("dk/dkbarrel_c.png", lambda: self.getCount("Strong") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("dk/dkbarrel_c.png", lambda: self.getCount("Strong") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("dk/dkbarrel.png", lambda: not self.active_state.strong and not USE_COLOR_ICONS, True),
+                IconCondition("dk/dkbarrel.png", lambda: self.active_state.strong and not USE_COLOR_ICONS, False),
+                IconCondition("dk/dkbarrel_c.png", lambda: not self.active_state.strong and USE_COLOR_ICONS, True),
+                IconCondition("dk/dkbarrel_c.png", lambda: self.active_state.strong and USE_COLOR_ICONS, False),
             ]),
             Icon("Rocket", 5, 1, [
-                IconCondition("diddy/diddybarrel.png", lambda: self.getCount("Rocket") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("diddy/diddybarrel.png", lambda: self.getCount("Rocket") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("diddy/diddybarrel_c.png", lambda: self.getCount("Rocket") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("diddy/diddybarrel_c.png", lambda: self.getCount("Rocket") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("diddy/diddybarrel.png", lambda: not self.active_state.rocket and not USE_COLOR_ICONS, True),
+                IconCondition("diddy/diddybarrel.png", lambda: self.active_state.rocket and not USE_COLOR_ICONS, False),
+                IconCondition("diddy/diddybarrel_c.png", lambda: not self.active_state.rocket and USE_COLOR_ICONS, True),
+                IconCondition("diddy/diddybarrel_c.png", lambda: self.active_state.rocket and USE_COLOR_ICONS, False),
             ]),
             Icon("Balloon", 4, 2, [
-                IconCondition("lanky/lankypad.png", lambda: self.getCount("Balloon") == 0, True),
-                IconCondition("lanky/lankypad.png", lambda: self.getCount("Balloon") != 0, False),
+                IconCondition("lanky/lankypad.png", lambda: not self.active_state.balloon, True),
+                IconCondition("lanky/lankypad.png", lambda: self.active_state.balloon, False),
             ]),
             Icon("Twirl", 3, 3, [
-                IconCondition("tiny/tiny_move.png", lambda: self.getCount("Twirl") == 0, True),
-                IconCondition("tiny/tiny_move.png", lambda: self.getCount("Twirl") != 0, False),
+                IconCondition("tiny/tiny_move.png", lambda: not self.active_state.twirl, True),
+                IconCondition("tiny/tiny_move.png", lambda: self.active_state.twirl, False),
             ]),
             Icon("Punch", 3, 4, [
-                IconCondition("chunky/chunky_move.png", lambda: self.getCount("Punch") == 0, True),
-                IconCondition("chunky/chunky_move.png", lambda: self.getCount("Punch") != 0, False),
+                IconCondition("chunky/chunky_move.png", lambda: not self.active_state.punch, True),
+                IconCondition("chunky/chunky_move.png", lambda: self.active_state.punch, False),
             ]),
             Icon("Grab", 3, 0, [
-                IconCondition("dk/dk_move.png", lambda: self.getCount("Grab") == 0, True),
-                IconCondition("dk/dk_move.png", lambda: self.getCount("Grab") != 0, False),
+                IconCondition("dk/dk_move.png", lambda: not self.active_state.grab, True),
+                IconCondition("dk/dk_move.png", lambda: self.active_state.grab, False),
             ]),
             Icon("Spring", 4, 1, [
-                IconCondition("diddy/diddypad.png", lambda: self.getCount("Spring") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("diddy/diddypad.png", lambda: self.getCount("Spring") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("diddy/diddypad_c.png", lambda: self.getCount("Spring") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("diddy/diddypad_c.png", lambda: self.getCount("Spring") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("diddy/diddypad.png", lambda: not self.active_state.spring and not USE_COLOR_ICONS, True),
+                IconCondition("diddy/diddypad.png", lambda: self.active_state.spring and not USE_COLOR_ICONS, False),
+                IconCondition("diddy/diddypad_c.png", lambda: not self.active_state.spring and USE_COLOR_ICONS, True),
+                IconCondition("diddy/diddypad_c.png", lambda: self.active_state.spring and USE_COLOR_ICONS, False),
             ]),
             Icon("Sprint", 5, 2, [
-                IconCondition("lanky/lankybarrel.png", lambda: self.getCount("Sprint") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("lanky/lankybarrel.png", lambda: self.getCount("Sprint") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("lanky/lankybarrel_c.png", lambda: self.getCount("Sprint") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("lanky/lankybarrel_c.png", lambda: self.getCount("Sprint") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("lanky/lankybarrel.png", lambda: not self.active_state.osprint and not USE_COLOR_ICONS, True),
+                IconCondition("lanky/lankybarrel.png", lambda: self.active_state.osprint and not USE_COLOR_ICONS, False),
+                IconCondition("lanky/lankybarrel_c.png", lambda: not self.active_state.osprint and USE_COLOR_ICONS, True),
+                IconCondition("lanky/lankybarrel_c.png", lambda: self.active_state.osprint and USE_COLOR_ICONS, False),
             ]),
             Icon("Port", 4, 3, [
-                IconCondition("tiny/tinypad.png", lambda: self.getCount("Port") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("tiny/tinypad.png", lambda: self.getCount("Port") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("tiny/tinypad_c.png", lambda: self.getCount("Port") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("tiny/tinypad_c.png", lambda: self.getCount("Port") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("tiny/tinypad.png", lambda: not self.active_state.port and not USE_COLOR_ICONS, True),
+                IconCondition("tiny/tinypad.png", lambda: self.active_state.port and not USE_COLOR_ICONS, False),
+                IconCondition("tiny/tinypad_c.png", lambda: not self.active_state.port and USE_COLOR_ICONS, True),
+                IconCondition("tiny/tinypad_c.png", lambda: self.active_state.port and USE_COLOR_ICONS, False),
             ]),
             Icon("Gone", 4, 4, [
-                IconCondition("chunky/chunkypad.png", lambda: self.getCount("Gone") == 0 and not USE_COLOR_ICONS, True),
-                IconCondition("chunky/chunkypad.png", lambda: self.getCount("Gone") != 0 and not USE_COLOR_ICONS, False),
-                IconCondition("chunky/chunkypad_c.png", lambda: self.getCount("Gone") == 0 and USE_COLOR_ICONS, True),
-                IconCondition("chunky/chunkypad_c.png", lambda: self.getCount("Gone") != 0 and USE_COLOR_ICONS, False),
+                IconCondition("chunky/chunkypad.png", lambda: not self.active_state.gone and not USE_COLOR_ICONS, True),
+                IconCondition("chunky/chunkypad.png", lambda: self.active_state.gone and not USE_COLOR_ICONS, False),
+                IconCondition("chunky/chunkypad_c.png", lambda: not self.active_state.gone and USE_COLOR_ICONS, True),
+                IconCondition("chunky/chunkypad_c.png", lambda: self.active_state.gone and USE_COLOR_ICONS, False),
             ]),
             Icon("Key 1", 0.25 * WIDE_SCALING, 8, [
-                IconCondition("keys/k1.png", lambda: self.getCount("Key 1") == 0, True),
-                IconCondition("keys/k1.png", lambda: self.getCount("Key 1") != 0, False),
+                IconCondition("keys/k1.png", lambda: not self.active_state.key_1, True),
+                IconCondition("keys/k1.png", lambda: self.active_state.key_1, False),
             ]),
             Icon("Key 2", 1.25 * WIDE_SCALING, 8, [
-                IconCondition("keys/k2.png", lambda: self.getCount("Key 2") == 0, True),
-                IconCondition("keys/k2.png", lambda: self.getCount("Key 2") != 0, False),
+                IconCondition("keys/k2.png", lambda: not self.active_state.key_2, True),
+                IconCondition("keys/k2.png", lambda: self.active_state.key_2, False),
             ]),
             Icon("Key 3", 2.25 * WIDE_SCALING, 8, [
-                IconCondition("keys/k3.png", lambda: self.getCount("Key 3") == 0, True),
-                IconCondition("keys/k3.png", lambda: self.getCount("Key 3") != 0, False),
+                IconCondition("keys/k3.png", lambda: not self.active_state.key_3, True),
+                IconCondition("keys/k3.png", lambda: self.active_state.key_3, False),
             ]),
             Icon("Key 4", 3.25 * WIDE_SCALING, 8, [
-                IconCondition("keys/k4.png", lambda: self.getCount("Key 4") == 0, True),
-                IconCondition("keys/k4.png", lambda: self.getCount("Key 4") != 0, False),
+                IconCondition("keys/k4.png", lambda: not self.active_state.key_4, True),
+                IconCondition("keys/k4.png", lambda: self.active_state.key_4, False),
             ]),
             Icon("Key 5", 0.25 * WIDE_SCALING, 9, [
-                IconCondition("keys/k5.png", lambda: self.getCount("Key 5") == 0, True),
-                IconCondition("keys/k5.png", lambda: self.getCount("Key 5") != 0, False),
+                IconCondition("keys/k5.png", lambda: not self.active_state.key_5, True),
+                IconCondition("keys/k5.png", lambda: self.active_state.key_5, False),
             ]),
             Icon("Key 6", 1.25 * WIDE_SCALING, 9, [
-                IconCondition("keys/k6.png", lambda: self.getCount("Key 6") == 0, True),
-                IconCondition("keys/k6.png", lambda: self.getCount("Key 6") != 0, False),
+                IconCondition("keys/k6.png", lambda: not self.active_state.key_6, True),
+                IconCondition("keys/k6.png", lambda: self.active_state.key_6, False),
             ]),
             Icon("Key 7", 2.25 * WIDE_SCALING, 9, [
-                IconCondition("keys/k7.png", lambda: self.getCount("Key 7") == 0, True),
-                IconCondition("keys/k7.png", lambda: self.getCount("Key 7") != 0, False),
+                IconCondition("keys/k7.png", lambda: not self.active_state.key_7, True),
+                IconCondition("keys/k7.png", lambda: self.active_state.key_7, False),
             ]),
             Icon("Key 8", 3.25 * WIDE_SCALING, 9, [
-                IconCondition("keys/k8.png", lambda: self.getCount("Key 8") == 0, True),
-                IconCondition("keys/k8.png", lambda: self.getCount("Key 8") != 0, False),
+                IconCondition("keys/k8.png", lambda: not self.active_state.key_8, True),
+                IconCondition("keys/k8.png", lambda: self.active_state.key_8, False),
             ]),
             Icon("Cranky", 0.25 * WIDE_SCALING, 6, [
-                IconCondition("shopkeepers/cranky.png", lambda: self.getCount("Cranky") == 0, True),
-                IconCondition("shopkeepers/cranky.png", lambda: self.getCount("Cranky") != 0, False),
+                IconCondition("shopkeepers/cranky.png", lambda: not self.active_state.cranky, True),
+                IconCondition("shopkeepers/cranky.png", lambda: self.active_state.cranky, False),
             ]),
             Icon("Funky", 1.25 * WIDE_SCALING, 6, [
-                IconCondition("shopkeepers/funky.png", lambda: self.getCount("Funky") == 0, True),
-                IconCondition("shopkeepers/funky.png", lambda: self.getCount("Funky") != 0, False),
+                IconCondition("shopkeepers/funky.png", lambda: not self.active_state.funky, True),
+                IconCondition("shopkeepers/funky.png", lambda: self.active_state.funky, False),
             ]),
             Icon("Candy", 2.25 * WIDE_SCALING, 6, [
-                IconCondition("shopkeepers/candy.png", lambda: self.getCount("Candy") == 0, True),
-                IconCondition("shopkeepers/candy.png", lambda: self.getCount("Candy") != 0, False),
+                IconCondition("shopkeepers/candy.png", lambda: not self.active_state.candy, True),
+                IconCondition("shopkeepers/candy.png", lambda: self.active_state.candy, False),
             ]),
             Icon("Snide", 3.25 * WIDE_SCALING, 6, [
-                IconCondition("shopkeepers/snide.png", lambda: self.getCount("Snide") == 0, True),
-                IconCondition("shopkeepers/snide.png", lambda: self.getCount("Snide") != 0, False),
+                IconCondition("shopkeepers/snide.png", lambda: not self.active_state.snide, True),
+                IconCondition("shopkeepers/snide.png", lambda: self.active_state.snide, False),
             ]),
             Icon("Donkey Blueprints", 6, 0, [
-                IconCondition("dk/dk_bp.png", lambda: self.getCount("DK Blueprints") == self.getCount("DK Turn-Ins"), True),
-                IconCondition("dk/dk_bp.png", lambda: self.getCount("DK Blueprints") != self.getCount("DK Turn-Ins"), False),
-            ], True, lambda: self.getCount("DK Blueprints") - self.getCount("DK Turn-Ins")),
+                IconCondition("dk/dk_bp.png", lambda: self.active_state.dk_bps == self.active_state.dk_turns, True),
+                IconCondition("dk/dk_bp.png", lambda: self.active_state.dk_bps != self.active_state.dk_turns, False),
+            ], True, lambda: self.active_state.dk_bps - self.active_state.dk_turns),
             Icon("Diddy Blueprints", 6, 1, [
-                IconCondition("diddy/diddy_bp.png", lambda: self.getCount("Diddy Blueprints") == self.getCount("Diddy Turn-Ins"), True),
-                IconCondition("diddy/diddy_bp.png", lambda: self.getCount("Diddy Blueprints") != self.getCount("Diddy Turn-Ins"), False),
-            ], True, lambda: self.getCount("Diddy Blueprints") - self.getCount("Diddy Turn-Ins")),
+                IconCondition("diddy/diddy_bp.png", lambda: self.active_state.diddy_bps == self.active_state.diddy_turns, True),
+                IconCondition("diddy/diddy_bp.png", lambda: self.active_state.diddy_bps != self.active_state.diddy_turns, False),
+            ], True, lambda: self.active_state.diddy_bps - self.active_state.diddy_turns),
             Icon("Lanky Blueprints", 6, 2, [
-                IconCondition("lanky/lanky_bp.png", lambda: self.getCount("Lanky Blueprints") == self.getCount("Lanky Turn-Ins"), True),
-                IconCondition("lanky/lanky_bp.png", lambda: self.getCount("Lanky Blueprints") != self.getCount("Lanky Turn-Ins"), False),
-            ], True, lambda: self.getCount("Lanky Blueprints") - self.getCount("Lanky Turn-Ins")),
+                IconCondition("lanky/lanky_bp.png", lambda: self.active_state.lanky_bps == self.active_state.lanky_turns, True),
+                IconCondition("lanky/lanky_bp.png", lambda: self.active_state.lanky_bps != self.active_state.lanky_turns, False),
+            ], True, lambda: self.active_state.lanky_bps - self.active_state.lanky_turns),
             Icon("Tiny Blueprints", 6, 3, [
-                IconCondition("tiny/tiny_bp.png", lambda: self.getCount("Tiny Blueprints") == self.getCount("Tiny Turn-Ins"), True),
-                IconCondition("tiny/tiny_bp.png", lambda: self.getCount("Tiny Blueprints") != self.getCount("Tiny Turn-Ins"), False),
-            ], True, lambda: self.getCount("Tiny Blueprints") - self.getCount("Tiny Turn-Ins")),
+                IconCondition("tiny/tiny_bp.png", lambda: self.active_state.tiny_bps == self.active_state.tiny_turns, True),
+                IconCondition("tiny/tiny_bp.png", lambda: self.active_state.tiny_bps != self.active_state.tiny_turns, False),
+            ], True, lambda: self.active_state.tiny_bps - self.active_state.tiny_turns),
             Icon("Chunky Blueprints", 6, 4, [
-                IconCondition("chunky/chunky_bp.png", lambda: self.getCount("Chunky Blueprints") == self.getCount("Chunky Turn-Ins"), True),
-                IconCondition("chunky/chunky_bp.png", lambda: self.getCount("Chunky Blueprints") != self.getCount("Chunky Turn-Ins"), False),
-            ], True, lambda: self.getCount("Chunky Blueprints") - self.getCount("Chunky Turn-Ins")),
+                IconCondition("chunky/chunky_bp.png", lambda: self.active_state.chunky_bps == self.active_state.chunky_turns, True),
+                IconCondition("chunky/chunky_bp.png", lambda: self.active_state.chunky_bps != self.active_state.chunky_turns, False),
+            ], True, lambda: self.active_state.chunky_bps - self.active_state.chunky_turns),
             Icon("Bean", 0, 7, [
-                IconCondition("all_kong/bean.png", lambda: self.getCount("Bean") == 0, True),
-                IconCondition("all_kong/bean.png", lambda: self.getCount("Bean") != 0, False),
+                IconCondition("all_kong/bean.png", lambda: not self.active_state.bean, True),
+                IconCondition("all_kong/bean.png", lambda: self.active_state.bean, False),
             ]),
             Icon("Company Coins", 1, 7, [
-                IconCondition("company_coins/shared_coin.png", lambda: self.getCount("Nintendo Coin") == 0 and self.getCount("Rareware Coin") == 0, True),
-                IconCondition("company_coins/shared_coin.png", lambda: self.getCount("Nintendo Coin") != 0 and self.getCount("Rareware Coin") != 0, False),
-                IconCondition("company_coins/nin_only.png", lambda: self.getCount("Nintendo Coin") != 0 and self.getCount("Rareware Coin") == 0, False),
-                IconCondition("company_coins/rw_only.png", lambda: self.getCount("Nintendo Coin") == 0 and self.getCount("Rareware Coin") != 0, False),
+                IconCondition("company_coins/shared_coin.png", lambda: not self.active_state.nintendo_coin and not self.active_state.rareware_coin, True),
+                IconCondition("company_coins/shared_coin.png", lambda: self.active_state.nintendo_coin and self.active_state.rareware_coin, False),
+                IconCondition("company_coins/nin_only.png", lambda: self.active_state.nintendo_coin and not self.active_state.rareware_coin, False),
+                IconCondition("company_coins/rw_only.png", lambda: not self.active_state.nintendo_coin and self.active_state.rareware_coin, False),
             ]),
             Icon("Crowns", 4, 7, [
-                IconCondition("plural_items/crown.png", lambda: self.getCount("Crowns") < 1, True),
-                IconCondition("plural_items/crown.png", lambda: self.getCount("Crowns") > 0, False),
-            ], True, lambda: self.getCount("Crowns")),
+                IconCondition("plural_items/crown.png", lambda: self.active_state.crowns < 1, True),
+                IconCondition("plural_items/crown.png", lambda: self.active_state.crowns > 0, False),
+            ], True, lambda: self.active_state.crowns),
             Icon("Medals", 6, 7, [
-                IconCondition("plural_items/bananamedal.png", lambda: self.getCount("Medals") < 1, True),
-                IconCondition("plural_items/bananamedal.png", lambda: self.getCount("Medals") > 0, False),
-            ], True, lambda: self.getCount("Medals")),
+                IconCondition("plural_items/bananamedal.png", lambda: self.active_state.medals < 1, True),
+                IconCondition("plural_items/bananamedal.png", lambda: self.active_state.medals > 0, False),
+            ], True, lambda: self.active_state.medals),
             Icon("Pearls", 2, 7, [
-                IconCondition("plural_items/pearl.png", lambda: self.getCount("Pearls") < 1, True),
-                IconCondition("plural_items/pearl.png", lambda: self.getCount("Pearls") > 0, False),
-            ], True, lambda: self.getCount("Pearls")),
+                IconCondition("plural_items/pearl.png", lambda: self.active_state.pearls < 1, True),
+                IconCondition("plural_items/pearl.png", lambda: self.active_state.pearls > 0, False),
+            ], True, lambda: self.active_state.pearls),
             Icon("Fairies", 5, 7, [
-                IconCondition("plural_items/banana_fairies.png", lambda: self.getCount("Fairies") < 1, True),
-                IconCondition("plural_items/banana_fairies.png", lambda: self.getCount("Fairies") > 0, False),
-            ], True, lambda: self.getCount("Fairies")),
+                IconCondition("plural_items/banana_fairies.png", lambda: self.active_state.fairies < 1, True),
+                IconCondition("plural_items/banana_fairies.png", lambda: self.active_state.fairies > 0, False),
+            ], True, lambda: self.active_state.fairies),
             Icon("Rainbow Coins", 3, 7, [
-                IconCondition("plural_items/rainbowcoin.png", lambda: self.getCount("Rainbow Coins") < 1, True),
-                IconCondition("plural_items/rainbowcoin.png", lambda: self.getCount("Rainbow Coins") > 0, False),
-            ], True, lambda: self.getCount("Rainbow Coins")),
+                IconCondition("plural_items/rainbowcoin.png", lambda: self.active_state.rainbow_coins < 1, True),
+                IconCondition("plural_items/rainbowcoin.png", lambda: self.active_state.rainbow_coins > 0, False),
+            ], True, lambda: self.active_state.rainbow_coins),
         ]
-
-    def getCount(self, check) -> int:
-        for item in self.item_data:
-            if item.name == check:
-                return item.count
-        raise Exception("Invalid key")
-
 
     def items_ui(self, parent_frame):
         self.items_frame = ttk.Frame(parent_frame, padding="5")
@@ -736,13 +733,18 @@ class Inventory(KrossbonesCore, KrossbonesLib):
     def hide_items_frame(self):
         self.items_frame.pack_forget()
 
-    def update_items_ui(self):
+    def update_items_ui(self, viewer_state: KrosshairViewers, password: str):
         if self.layer is None or self.item_data is None or self.icons is None:
             return
-        mode_1 = self.memory_client.read_u8(0x80755318)
-        if mode_1 == 6:
-            for item in self.item_data:
-                item.getCount(self)
+        self.active_state = self.states[self.selected_state_index]
+        if viewer_state == KrosshairViewers.player:
+            mode_1 = self.memory_client.read_u8(0x80755318)
+            if mode_1 == 6:
+                for item in self.item_data:
+                    setattr(self.active_state, item.attr, item.getCount(self))
+            self.active_state.encrypt(password)  # Send settings over
+        elif viewer_state in (KrosshairViewers.restreamer, KrosshairViewers.comms):
+            self.active_state.decrypt("", password)  # Receive settings
         local_scale = get_preference("ui_scale")
         for icon in self.icons:
             dim = local_scale
