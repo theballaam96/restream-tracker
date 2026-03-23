@@ -12,6 +12,7 @@ import json
 import socket
 import secrets
 from modules.connection import KBConnection
+from modules.inventory import Inventory
 
 # ================= GLOBAL STATE =================
 
@@ -222,18 +223,22 @@ def restreamer_ui():
     clear()
 
     status = tk.StringVar(value="Idle")
+    canvas_color = "green"
+    canvas_height = 550
 
     ttk.Label(root, text="Restreamer Host", font=("Arial", 16)).pack()
     ttk.Label(root, textvariable=status).pack()
 
-    url_box = tk.Text(root, height=3)
-    url_box.pack(fill="x")
-
-    monitor = tk.Text(root, height=6)
-    monitor.pack(fill="both", expand=True)
-
-    users_box = tk.Text(root, height=6)
-    users_box.pack(fill="both", expand=True)
+    server_row = ttk.Frame(root)
+    server_row.pack(pady=5)
+    url_val = tk.StringVar(value="")
+    url_box = tk.Entry(server_row, textvariable=url_val, state="readonly")
+    url_box.pack(side="left", padx=5)
+    ttk.Button(
+        server_row,
+        text="Copy",
+        command=lambda: copy_to_clipboard(url_val.get())
+    ).pack(side="left", padx=5)
 
     # generate passwords
     p1_pass = tk.StringVar(value=gen_valid_password(1))
@@ -257,7 +262,7 @@ def restreamer_ui():
     ttk.Label(p1_frame, text="Player 1", font=("Arial", 14)).pack(pady=5)
 
     ttk.Label(p1_frame, text="Password").pack()
-    ttk.Entry(p1_frame, textvariable=p1_pass).pack(fill="x", pady=5)
+    ttk.Entry(p1_frame, textvariable=p1_pass, state="readonly").pack(fill="x", pady=5)
 
     btn_row1 = ttk.Frame(p1_frame)
     btn_row1.pack(pady=5)
@@ -278,7 +283,9 @@ def restreamer_ui():
     ttk.Label(p1_frame, text="Display Delay").pack()
     ttk.Entry(p1_frame, textvariable=delay_var_1).pack()
 
-    p1_canvas = tk.Canvas(p1_frame, height=150, bg="black")
+    inventory_1 = Inventory()
+    p1_canvas = tk.Canvas(p1_frame, height=canvas_height, bg=canvas_color)
+    inventory_1.initCanvas(p1_canvas)
     p1_canvas.pack(fill="both", expand=True, pady=10)
 
 
@@ -289,7 +296,7 @@ def restreamer_ui():
     ttk.Label(p2_frame, text="Player 2", font=("Arial", 14)).pack(pady=5)
 
     ttk.Label(p2_frame, text="Password").pack()
-    ttk.Entry(p2_frame, textvariable=p2_pass).pack(fill="x", pady=5)
+    ttk.Entry(p2_frame, textvariable=p2_pass, state="readonly").pack(fill="x", pady=5)
 
     btn_row2 = ttk.Frame(p2_frame)
     btn_row2.pack(pady=5)
@@ -310,7 +317,9 @@ def restreamer_ui():
     ttk.Label(p2_frame, text="Display Delay").pack()
     ttk.Entry(p2_frame, textvariable=delay_var_2).pack()
 
-    p2_canvas = tk.Canvas(p2_frame, height=150, bg="black")
+    inventory_2 = Inventory()
+    p2_canvas = tk.Canvas(p2_frame, height=canvas_height, bg=canvas_color)
+    inventory_2.initCanvas(p2_canvas)
     p2_canvas.pack(fill="both", expand=True, pady=10)
 
     def log(msg):
@@ -356,14 +365,15 @@ def restreamer_ui():
                 log("Tunnel failed")
                 return
 
-            url_box.insert(tk.END, url + "\n")
+            url_val.set(url)
 
             def update_display(v):
                 # Display Logic
-                return
-                # monitor.delete(1.0, tk.END)
-                # for k, val in v.items():
-                #     monitor.insert(tk.END, f"{k}: {val}\n")
+                try:
+                    inventory_1.getItemPacket(v, 1, p1_pass.get())
+                    inventory_2.getItemPacket(v, 2, p2_pass.get())
+                except Exception as e:
+                    print("Error:", e)
 
             buffer_1 = DelayBuffer(lambda: delay_var_1.get(), update_display)
             buffer_2 = DelayBuffer(lambda: delay_var_2.get(), update_display)
@@ -378,16 +388,16 @@ def restreamer_ui():
                         r = requests.get(f"http://127.0.0.1:{SERVER_PORT}/clients")
                         users = r.json()
 
-                        users_box.delete(1.0, tk.END)
-                        now = time.time()
-                        for u, d in users.items():
-                            if now - d["last_seen"] < 5:
-                                users_box.insert(tk.END, f"{u} ({d['role']})\n")
+                        # users_box.delete(1.0, tk.END)
+                        # now = time.time()
+                        # for u, d in users.items():
+                        #     if now - d["last_seen"] < 5:
+                        #         users_box.insert(tk.END, f"{u} ({d['role']})\n")
 
                     except:
                         pass
 
-                    time.sleep(0.2)
+                    time.sleep(1)
 
             threading.Thread(target=poll, daemon=True).start()
 
@@ -395,7 +405,7 @@ def restreamer_ui():
 
         threading.Thread(target=run).start()
 
-    ttk.Button(root, text="Start Server", command=launch).pack()
+    ttk.Button(server_row, text="Start Server", command=launch).pack()
     ttk.Button(root, text="Back", command=main_menu).pack()
 
 # ================= LOGIN =================
@@ -434,7 +444,7 @@ def login_ui(role):
 
         if role == "player":
             player_index = get_player_from_password(pw)
-            player_ui(player_index)
+            player_ui(player_index, pw)
         else:
             comms_ui()
 
@@ -442,34 +452,12 @@ def login_ui(role):
     ttk.Button(root, text="Back", command=main_menu).pack()
 # ================= PLAYER =================
 
-def player_ui(player_index: int):
+def player_ui(player_index: int, password: str):
     clear()
 
     ttk.Label(root, text=f"Player {player_index}").pack()
     connection = KBConnection()
-    connection.connection_ui(root, root)
-
-    value_entry = ttk.Entry(root)
-    value_entry.pack()
-
-    def send():
-        try:
-            payload = {}
-
-            if player_index == 1:
-                payload["value1"] = value_entry.get()
-            elif player_index == 2:
-                payload["value2"] = value_entry.get()
-
-            requests.post(
-                f"{BASE_URL}/update",
-                json=payload
-            )
-        except:
-            pass
-
-    ttk.Button(root, text="Update", command=send).pack()
-    ttk.Button(root, text="Back", command=main_menu).pack()
+    connection.connection_ui(root, root, f"{BASE_URL}/update", player_index, password)
 
 # ================= COMMS =================
 
@@ -509,7 +497,7 @@ def comms_ui():
 
 root = tk.Tk()
 root.title("Restream Tool")
-root.geometry("500x700")
+root.geometry("900x900")
 
 main_menu()
 root.mainloop()

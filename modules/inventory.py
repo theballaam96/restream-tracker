@@ -8,6 +8,7 @@ from typing import Union
 from PIL import Image, ImageTk, ImageEnhance, ImageFont, ImageDraw
 from modules.preferences import get_preference, set_preference
 from tkinter import colorchooser
+import requests
 
 class ItemTypes(IntEnum):
     CountStruct = auto()
@@ -333,7 +334,7 @@ class Inventory(KrosshairCore):
 
         self.layer = None
         self.items_frame = None
-        self.states: list[KrosshairState] = []
+        self.states: list[KrosshairState] = [KrosshairState()]
         self.selected_state_index = 0
         self.active_state = self.states[self.selected_state_index]
         # Item database - separated into moves and items
@@ -758,3 +759,64 @@ class Inventory(KrosshairCore):
             if icon.display_count:
                 count = icon.count()
                 self.layer.set_number(icon.key, count)
+
+    def sendItemPacket(self, url, player_index, password):
+        self.active_state = self.states[self.selected_state_index]
+        mode_1 = self.memory_client.read_u8(0x80755318)
+        if mode_1 == 6:
+            for item in self.item_data:
+                setattr(self.active_state, item.attr, item.getCount(self))
+        enc = self.active_state.encrypt(password)
+        print(url)
+        try:
+            payload = {}
+
+            if player_index == 1:
+                payload["value1"] = enc
+            elif player_index == 2:
+                payload["value2"] = enc
+
+            response = requests.post(
+                url,
+                json=payload
+            )
+            print("Status:", response.status_code)
+            print("Response:", response.text)
+        except Exception as e:
+            print("Error:", e)
+
+    def getItemPacket(self, data, player_index, password):
+        # URL = f"{BASE_URL}/state"
+        self.active_state = self.states[self.selected_state_index]
+        self.active_state.decrypt(data[f"value{player_index}"], password)
+        # Render
+        local_scale = get_preference("ui_scale")
+        for icon in self.icons:
+            dim = local_scale
+            if icon.is_compact:
+                dim *= 0.8
+            for cond in icon.icon_data:
+                if cond.condition():
+                    self.layer.swap_image(icon.key, cond.icon, 0.5, (int(dim), int(dim)), icon.display_count)
+                    self.layer.set_position(icon.key, int(icon.x * local_scale), int(icon.y * local_scale))
+                    self.layer.set_dimmed(icon.key, cond.dim_if_true)
+            if icon.display_count:
+                count = icon.count()
+                self.layer.set_number(icon.key, count)
+
+    def initCanvas(self, canvas):
+        self.layer = CanvasImageLayer(canvas)
+        local_scale = get_preference("ui_scale")
+        
+        for icon in self.icons:
+            dim = local_scale
+            if icon.is_compact:
+                dim *= 0.8
+            self.layer.add_image(
+                key=icon.key,
+                image_path=icon.icon_data[0].icon,
+                x=int(local_scale * icon.x),
+                y=int(local_scale * icon.y),
+                size=(int(dim), int(dim)),
+                has_number=icon.display_count
+            )

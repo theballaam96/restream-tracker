@@ -3,6 +3,7 @@ from tkinter import ttk
 from loader import attachWrapper, Emulators
 from modules.client import N64MemoryClient
 from modules.memory_map import DK64MemoryMap
+from modules.inventory import Inventory
 
 def connect_to_emulator():
     """Connect to any available emulator using the official loader system."""
@@ -32,12 +33,13 @@ def connect_to_emulator():
     # No emulator found
     return None
 
-class KBConnection():
+class KBConnection(Inventory):
     def __init__(self):
         self.memory_client = None
         self.memory_pointer = 0
+        Inventory.__init__(self)
 
-    def connect_internal(self, root):
+    def connect_internal(self, root, url, player_index, password):
         try:
             # Use the official loader to connect to any available emulator
             print("Attempting to connect to any available emulator...")
@@ -75,7 +77,7 @@ class KBConnection():
                     self.memory_pointer = memory_pointer
                     self.status_label.config(text=f"Connected to {emulator_info.readable_emulator_name}", foreground="green")
                     print(f"Successfully connected to {emulator_info.readable_emulator_name}")
-                    self.frame_loop(root)
+                    self.frame_loop(root, url, player_index, password)
                 except Exception as validation_error:
                     print(f"Memory pointer read failed: {str(validation_error)}")
                     
@@ -85,7 +87,7 @@ class KBConnection():
                         print(f"Basic connection test successful - Map index: {map_index}")
                         self.status_label.config(text=f"Connected to {emulator_info.readable_emulator_name}", foreground="green")
                         print(f"Successfully connected to {emulator_info.readable_emulator_name} (basic mode)")
-                        self.frame_loop(root)
+                        self.frame_loop(root, url, player_index, password)
                     except Exception as basic_error:
                         print(f"Basic connection test also failed: {str(basic_error)}")
                         self.status_label.config(text=f"Connected to {emulator_info.readable_emulator_name} (partial)", foreground="orange")
@@ -97,10 +99,10 @@ class KBConnection():
             print(f"Failed to connect: {str(e)}")
             self.status_label.config(text="Connection failed", foreground="red")
 
-    def connect(self, root):
+    def connect(self, root, url, player_index, password):
         """Connect to the emulator."""
         self.status_label.config(text="Attempting Connection...", foreground="orange")
-        root.after(10, lambda: self.connect_internal(root))  # Needs to be done like this to allow a UI update
+        root.after(10, lambda: self.connect_internal(root, url, player_index, password))  # Needs to be done like this to allow a UI update
     
     def disconnect(self):
         """Disconnect from emulator."""
@@ -153,13 +155,13 @@ class KBConnection():
             pass
             print(f"Validation error: {str(e)}")
 
-    def connection_ui(self, parent_frame, root):
+    def connection_ui(self, parent_frame, root, url, player_index, password):
         connection_frame = ttk.LabelFrame(parent_frame, text="Emulator Connection", padding="5")
         connection_frame.pack(fill=tk.X, pady=(0, 10))
         
         button_frame = ttk.Frame(connection_frame)
         button_frame.pack(fill=tk.X)
-        ttk.Button(button_frame, text="Connect", command=lambda: self.connect(root)).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(button_frame, text="Connect", command=lambda: self.connect(root, url, player_index, password)).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(button_frame, text="Disconnect", command=self.disconnect).pack(side=tk.LEFT)
         
         self.status_label = ttk.Label(connection_frame, text="Not connected", foreground="red")
@@ -173,7 +175,7 @@ class KBConnection():
         self.debug_output = tk.Text(debug_frame, height=6, width=60)
         self.debug_output.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
-    def frame_loop(self, root):
+    def frame_loop(self, root, url, player_index, password):
         # if self.memory_client:
             # if not self.mem_client_state:
             #     self.show_items_frame()
@@ -183,4 +185,5 @@ class KBConnection():
             # if self.mem_client_state:
             #     self.hide_items_frame()
             #     self.mem_client_state = False
-        root.after(int(1000 / 10), lambda: self.frame_loop(root))
+        self.sendItemPacket(url, player_index, password)
+        root.after(1000, lambda: self.frame_loop(root, url, player_index, password))
