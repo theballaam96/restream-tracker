@@ -136,11 +136,3 @@ class KrosshairState:
     def decrypt(self, token: str, password: str) -> str:
         output_dict: dict = self.decryptInternals(token, password)
         self.__dict__.update(output_dict)
-
-class KrosshairLib:
-    def log_debug(self, message: str):
-        """Log debug message."""
-        if self.debug_output:
-            self.debug_output.insert(tk.END, f"{message}\n")
-            self.debug_output.see(tk.END)
-        # print(message)

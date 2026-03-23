@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from modules.memory_map import DK64MemoryMap
-from modules.lib import KrosshairLib, KrosshairState, KrosshairViewers
+from modules.lib import KrosshairState, KrosshairViewers
 from modules.core import KrosshairCore
 from enum import IntEnum, auto
 from typing import Union
@@ -327,7 +327,7 @@ class Controls(tk.Frame):
 COMPACT_SCALING = 7 / 8
 WIDE_SCALING = 7 / 4
 
-class Inventory(KrosshairCore, KrosshairLib):
+class Inventory(KrosshairCore):
     def __init__(self):
         """Initialize with given parameters."""
 

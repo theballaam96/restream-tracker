@@ -11,6 +11,7 @@ import string
 import json
 import socket
 import secrets
+from modules.connection import KBConnection
 
 # ================= GLOBAL STATE =================
 
@@ -359,9 +360,10 @@ def restreamer_ui():
 
             def update_display(v):
                 # Display Logic
-                monitor.delete(1.0, tk.END)
-                for k, val in v.items():
-                    monitor.insert(tk.END, f"{k}: {val}\n")
+                return
+                # monitor.delete(1.0, tk.END)
+                # for k, val in v.items():
+                #     monitor.insert(tk.END, f"{k}: {val}\n")
 
             buffer_1 = DelayBuffer(lambda: delay_var_1.get(), update_display)
             buffer_2 = DelayBuffer(lambda: delay_var_2.get(), update_display)
@@ -431,7 +433,8 @@ def login_ui(role):
         start_heartbeat(BASE_URL, username, role)
 
         if role == "player":
-            player_ui()
+            player_index = get_player_from_password(pw)
+            player_ui(player_index)
         else:
             comms_ui()
 
@@ -439,25 +442,28 @@ def login_ui(role):
     ttk.Button(root, text="Back", command=main_menu).pack()
 # ================= PLAYER =================
 
-def player_ui():
+def player_ui(player_index: int):
     clear()
 
-    ttk.Label(root, text="Player").pack()
+    ttk.Label(root, text=f"Player {player_index}").pack()
+    connection = KBConnection()
+    connection.connection_ui(root, root)
 
-    v1 = ttk.Entry(root)
-    v1.pack()
-
-    v2 = ttk.Entry(root)
-    v2.pack()
+    value_entry = ttk.Entry(root)
+    value_entry.pack()
 
     def send():
         try:
+            payload = {}
+
+            if player_index == 1:
+                payload["value1"] = value_entry.get()
+            elif player_index == 2:
+                payload["value2"] = value_entry.get()
+
             requests.post(
                 f"{BASE_URL}/update",
-                json={
-                    "value1": v1.get(),
-                    "value2": v2.get()
-                }
+                json=payload
             )
         except:
             pass
