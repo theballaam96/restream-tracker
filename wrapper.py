@@ -97,6 +97,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/presence":
             CLIENTS[data["username"]] = {
                 "role": data["role"],
+                "index": data["index"],
                 "last_seen": time.time()
             }
             self.send_response(200)
@@ -152,13 +153,13 @@ class DelayBuffer:
 
 # ================= HEARTBEAT =================
 
-def start_heartbeat(base_url, username, role):
+def start_heartbeat(base_url, username, index, role):
     def loop():
         while True:
             try:
                 requests.post(
                     f"{base_url}/presence",
-                    json={"username": username, "role": role}
+                    json={"username": username, "index": index, "role": role}
                 )
             except:
                 pass
@@ -226,7 +227,7 @@ def restreamer_ui(is_restreamer: bool = True):
     canvas_color = "green" if is_restreamer else "black"
     canvas_height = 550
 
-    ttk.Label(root, text="Restreamer Host", font=("Arial", 16)).pack()
+    ttk.Label(root, text="Restreamer Host" if is_restreamer else "Commentary Crew", font=("Arial", 16)).pack()
     ttk.Label(root, textvariable=status).pack()
 
     server_row = ttk.Frame(root)
@@ -260,7 +261,18 @@ def restreamer_ui(is_restreamer: bool = True):
     p1_frame = ttk.Frame(container, relief="ridge", padding=10)
     p1_frame.grid(row=0, column=0, sticky="nsew", padx=5)
 
-    ttk.Label(p1_frame, text="Player 1", font=("Arial", 14)).pack(pady=5)
+    header_1 = ttk.Frame(p1_frame)
+    header_1.pack(pady=5)
+
+    # tiny canvas for status dot
+    status_canvas_1 = tk.Canvas(header_1, width=12, height=12, highlightthickness=0)
+    status_canvas_1.pack(side="left", padx=(0, 5))
+
+    # draw circle
+    dot_1 = status_canvas_1.create_oval(2, 2, 10, 10, fill="red", outline="")
+
+    # label
+    ttk.Label(header_1, text="Player 1", font=("Arial", 14)).pack(side="left")
 
     ttk.Label(p1_frame, text="Password").pack()
     ttk.Entry(p1_frame, textvariable=p1_pass, state="readonly" if is_restreamer else "normal").pack(fill="x", pady=5)
@@ -295,7 +307,18 @@ def restreamer_ui(is_restreamer: bool = True):
     p2_frame = ttk.Frame(container, relief="ridge", padding=10)
     p2_frame.grid(row=0, column=1, sticky="nsew", padx=5)
 
-    ttk.Label(p2_frame, text="Player 2", font=("Arial", 14)).pack(pady=5)
+    header_2 = ttk.Frame(p2_frame)
+    header_2.pack(pady=5)
+
+    # tiny canvas for status dot
+    status_canvas_2 = tk.Canvas(header_2, width=12, height=12, highlightthickness=0)
+    status_canvas_2.pack(side="left", padx=(0, 5))
+
+    # draw circle
+    dot_2 = status_canvas_2.create_oval(2, 2, 10, 10, fill="red", outline="")
+
+    # label
+    ttk.Label(header_2, text="Player 2", font=("Arial", 14)).pack(side="left")
 
     ttk.Label(p2_frame, text="Password").pack()
     ttk.Entry(p2_frame, textvariable=p2_pass, state="readonly" if is_restreamer else "normal").pack(fill="x", pady=5)
@@ -394,13 +417,18 @@ def restreamer_ui(is_restreamer: bool = True):
 
                         r = requests.get(f"{base}/clients")
                         users = r.json()
-
-                        # users_box.delete(1.0, tk.END)
-                        # now = time.time()
-                        # for u, d in users.items():
-                        #     if now - d["last_seen"] < 5:
-                        #         users_box.insert(tk.END, f"{u} ({d['role']})\n")
-
+                        now = time.time()
+                        for u, d in users.items():
+                            delta_s = now - d["last_seen"]
+                            color = "green"
+                            if delta_s > 10:
+                                color = "red"
+                            elif delta_s > 5:
+                                color = "yellow"
+                            if d["index"] == 1:
+                                status_canvas_1.itemconfig(dot_1, fill=color)
+                            elif d["index"] == 2:
+                                status_canvas_2.itemconfig(dot_2, fill=color)
                     except:
                         pass
 
@@ -450,7 +478,7 @@ def login_ui(role):
         # derive a consistent username from password (optional)
         username = f"user_{abs(hash(pw)) % 10000}"
 
-        start_heartbeat(BASE_URL, username, role)
+        start_heartbeat(BASE_URL, username, get_player_from_password(pw), role)
 
         if role == "player":
             player_index = get_player_from_password(pw)
