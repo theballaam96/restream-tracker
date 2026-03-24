@@ -173,9 +173,9 @@ def main_menu():
 
     ttk.Label(root, text="Select Role", font=("Arial", 18)).pack(pady=20)
 
-    ttk.Button(root, text="Restreamer", command=restreamer_ui).pack(pady=10)
+    ttk.Button(root, text="Restreamer", command=lambda: restreamer_ui(True)).pack(pady=10)
     ttk.Button(root, text="Player", command=lambda: login_ui("player")).pack(pady=10)
-    ttk.Button(root, text="Comms", command=lambda: login_ui("comms")).pack(pady=10)
+    ttk.Button(root, text="Comms", command=lambda: restreamer_ui(False)).pack(pady=10)
 
 # ================= PASSWORD ==================
 
@@ -219,11 +219,11 @@ def gen_valid_password(player: int) -> str:
 
 # ================= RESTREAMER =================
 
-def restreamer_ui():
+def restreamer_ui(is_restreamer: bool = True):
     clear()
 
     status = tk.StringVar(value="Idle")
-    canvas_color = "green"
+    canvas_color = "green" if is_restreamer else "black"
     canvas_height = 550
 
     ttk.Label(root, text="Restreamer Host", font=("Arial", 16)).pack()
@@ -232,17 +232,18 @@ def restreamer_ui():
     server_row = ttk.Frame(root)
     server_row.pack(pady=5)
     url_val = tk.StringVar(value="")
-    url_box = tk.Entry(server_row, textvariable=url_val, state="readonly")
+    url_box = tk.Entry(server_row, textvariable=url_val, state="readonly" if is_restreamer else "normal")
     url_box.pack(side="left", padx=5)
-    ttk.Button(
-        server_row,
-        text="Copy",
-        command=lambda: copy_to_clipboard(url_val.get())
-    ).pack(side="left", padx=5)
+    if is_restreamer:
+        ttk.Button(
+            server_row,
+            text="Copy",
+            command=lambda: copy_to_clipboard(url_val.get())
+        ).pack(side="left", padx=5)
 
     # generate passwords
-    p1_pass = tk.StringVar(value=gen_valid_password(1))
-    p2_pass = tk.StringVar(value=gen_valid_password(2))
+    p1_pass = tk.StringVar(value=gen_valid_password(1) if is_restreamer else "")
+    p2_pass = tk.StringVar(value=gen_valid_password(2) if is_restreamer else "")
 
     def copy_to_clipboard(text):
         root.clipboard_clear()
@@ -262,22 +263,23 @@ def restreamer_ui():
     ttk.Label(p1_frame, text="Player 1", font=("Arial", 14)).pack(pady=5)
 
     ttk.Label(p1_frame, text="Password").pack()
-    ttk.Entry(p1_frame, textvariable=p1_pass, state="readonly").pack(fill="x", pady=5)
+    ttk.Entry(p1_frame, textvariable=p1_pass, state="readonly" if is_restreamer else "normal").pack(fill="x", pady=5)
 
-    btn_row1 = ttk.Frame(p1_frame)
-    btn_row1.pack(pady=5)
+    if is_restreamer:
+        btn_row1 = ttk.Frame(p1_frame)
+        btn_row1.pack(pady=5)
 
-    ttk.Button(
-        btn_row1,
-        text="Copy",
-        command=lambda: copy_to_clipboard(p1_pass.get())
-    ).pack(side="left", padx=5)
+        ttk.Button(
+            btn_row1,
+            text="Copy",
+            command=lambda: copy_to_clipboard(p1_pass.get())
+        ).pack(side="left", padx=5)
 
-    ttk.Button(
-        btn_row1,
-        text="Regenerate",
-        command=lambda: p1_pass.set(gen_valid_password(1))
-    ).pack(side="left", padx=5)
+        ttk.Button(
+            btn_row1,
+            text="Regenerate",
+            command=lambda: p1_pass.set(gen_valid_password(1))
+        ).pack(side="left", padx=5)
 
     delay_var_1 = tk.DoubleVar(value=0)
     ttk.Label(p1_frame, text="Display Delay").pack()
@@ -296,22 +298,23 @@ def restreamer_ui():
     ttk.Label(p2_frame, text="Player 2", font=("Arial", 14)).pack(pady=5)
 
     ttk.Label(p2_frame, text="Password").pack()
-    ttk.Entry(p2_frame, textvariable=p2_pass, state="readonly").pack(fill="x", pady=5)
+    ttk.Entry(p2_frame, textvariable=p2_pass, state="readonly" if is_restreamer else "normal").pack(fill="x", pady=5)
 
-    btn_row2 = ttk.Frame(p2_frame)
-    btn_row2.pack(pady=5)
+    if is_restreamer:
+        btn_row2 = ttk.Frame(p2_frame)
+        btn_row2.pack(pady=5)
 
-    ttk.Button(
-        btn_row2,
-        text="Copy",
-        command=lambda: copy_to_clipboard(p2_pass.get())
-    ).pack(side="left", padx=5)
+        ttk.Button(
+            btn_row2,
+            text="Copy",
+            command=lambda: copy_to_clipboard(p2_pass.get())
+        ).pack(side="left", padx=5)
 
-    ttk.Button(
-        btn_row2,
-        text="Regenerate",
-        command=lambda: p2_pass.set(gen_valid_password(2))
-    ).pack(side="left", padx=5)
+        ttk.Button(
+            btn_row2,
+            text="Regenerate",
+            command=lambda: p2_pass.set(gen_valid_password(2))
+        ).pack(side="left", padx=5)
 
     delay_var_2 = tk.DoubleVar(value=0)
     ttk.Label(p2_frame, text="Display Delay").pack()
@@ -328,44 +331,45 @@ def restreamer_ui():
 
     def launch():
         def run():
-            log("Starting local server...")
-            start_server()
+            if is_restreamer:
+                log("Starting local server...")
+                start_server()
 
-            log(f"Server on port {SERVER_PORT}")
+                log(f"Server on port {SERVER_PORT}")
 
-            log("Preparing tunnel...")
-            ensure_cloudflared()
+                log("Preparing tunnel...")
+                ensure_cloudflared()
 
-            log("Starting tunnel...")
+                log("Starting tunnel...")
 
-            proc = subprocess.Popen(
-                [CF_EXE, "tunnel", "--url", f"http://127.0.0.1:{SERVER_PORT}"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
+                proc = subprocess.Popen(
+                    [CF_EXE, "tunnel", "--url", f"http://127.0.0.1:{SERVER_PORT}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
 
-            url = None
-            start = time.time()
+                url = None
+                start = time.time()
 
-            while True:
-                line = proc.stdout.readline()
+                while True:
+                    line = proc.stdout.readline()
 
-                if line:
-                    print(line.strip())
-                    m = re.search(r"(https://[a-zA-Z0-9\-]+\.trycloudflare\.com)", line)
-                    if m:
-                        url = m.group(1)
+                    if line:
+                        print(line.strip())
+                        m = re.search(r"(https://[a-zA-Z0-9\-]+\.trycloudflare\.com)", line)
+                        if m:
+                            url = m.group(1)
+                            break
+
+                    if time.time() - start > 15:
                         break
 
-                if time.time() - start > 15:
-                    break
+                if not url:
+                    log("Tunnel failed")
+                    return
 
-            if not url:
-                log("Tunnel failed")
-                return
-
-            url_val.set(url)
+                url_val.set(url)
 
             def update_display(v):
                 # Display Logic
@@ -381,11 +385,14 @@ def restreamer_ui():
             def poll():
                 while True:
                     try:
-                        r = requests.get(f"http://127.0.0.1:{SERVER_PORT}/state")
+                        base = f"http://127.0.0.1:{SERVER_PORT}"
+                        if not is_restreamer:
+                            base = url_val.get()
+                        r = requests.get(f"{base}/state")
                         buffer_1.push(r.json())
                         buffer_2.push(r.json())
 
-                        r = requests.get(f"http://127.0.0.1:{SERVER_PORT}/clients")
+                        r = requests.get(f"{base}/clients")
                         users = r.json()
 
                         # users_box.delete(1.0, tk.END)
@@ -401,11 +408,14 @@ def restreamer_ui():
 
             threading.Thread(target=poll, daemon=True).start()
 
-            log("Server ready")
+            if is_restreamer:
+                log("Server ready")
+            else:
+                log("Connection made")
 
         threading.Thread(target=run).start()
 
-    ttk.Button(server_row, text="Start Server", command=launch).pack()
+    ttk.Button(server_row, text="Start Server" if is_restreamer else "Start Connection", command=launch).pack()
     ttk.Button(root, text="Back", command=main_menu).pack()
 
 # ================= LOGIN =================

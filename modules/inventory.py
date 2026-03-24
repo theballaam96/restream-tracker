@@ -762,10 +762,10 @@ class Inventory(KrosshairCore):
 
     def sendItemPacket(self, url, player_index, password):
         self.active_state = self.states[self.selected_state_index]
-        mode_1 = self.memory_client.read_u8(0x80755318)
-        if mode_1 == 6:
-            for item in self.item_data:
-                setattr(self.active_state, item.attr, item.getCount(self))
+        # mode_1 = self.memory_client.read_u8(0x80755318)
+        # if mode_1 == 6:
+        for item in self.item_data:
+            setattr(self.active_state, item.attr, item.getCount(self))
         enc = self.active_state.encrypt(password)
         print(url)
         try:
