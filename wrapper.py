@@ -394,16 +394,22 @@ def restreamer_ui(is_restreamer: bool = True):
 
                 url_val.set(url)
 
-            def update_display(v):
+            def update_display1(v):
                 # Display Logic
                 try:
                     inventory_1.getItemPacket(v, 1, p1_pass.get())
+                except Exception as e:
+                    print("Error:", e)
+
+            def update_display2(v):
+                # Display Logic
+                try:
                     inventory_2.getItemPacket(v, 2, p2_pass.get())
                 except Exception as e:
                     print("Error:", e)
 
-            buffer_1 = DelayBuffer(lambda: delay_var_1.get(), update_display)
-            buffer_2 = DelayBuffer(lambda: delay_var_2.get(), update_display)
+            buffer_1 = DelayBuffer(lambda: delay_var_1.get(), update_display1)
+            buffer_2 = DelayBuffer(lambda: delay_var_2.get(), update_display2)
 
             def poll():
                 while True:
