@@ -8,6 +8,18 @@ from typing import Optional, Tuple, List, Dict, Any
 from enum import IntEnum, auto
 
 # Heavily based on the autoconnector work in GSTHD by JXJacob
+class Emulators(IntEnum):
+    """Emulator enum."""
+
+    Project64 = auto()
+    BizHawk = auto()
+    Project64_v4 = auto()
+    RMG = auto()
+    Simple64 = auto()
+    ParallelLauncher = auto()
+    RetroArch = auto()
+    ParallelLauncher903 = auto()
+    Ares = auto()
 
 # Detect operating system
 IS_WINDOWS = platform.system() == "Windows"
@@ -338,20 +350,6 @@ class ProcessMemory:
         elif IS_LINUX and self.mem_file:
             self.mem_file.close()
             self.mem_file = None
-
-
-class Emulators(IntEnum):
-    """Emulator enum."""
-
-    Project64 = auto()
-    BizHawk = auto()
-    Project64_v4 = auto()
-    RMG = auto()
-    Simple64 = auto()
-    ParallelLauncher = auto()
-    RetroArch = auto()
-    ParallelLauncher903 = auto()
-    Ares = auto()
 
 
 class EmulatorInfo:
