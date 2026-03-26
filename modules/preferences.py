@@ -1,8 +1,16 @@
 import json
 import os
+import sys
 
-PREFERENCE_JSON = "preferences.json"
-DEFAULT_PREFERENCE_JSON = "default_preferences.json"
+def resource_path(relative_path):
+    """Get absolute path to resource (works for dev + PyInstaller)"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+PREFERENCE_JSON = resource_path("preferences.json")
+DEFAULT_PREFERENCE_JSON = resource_path("default_preferences.json")
+
 
 def set_preference(attr, value):
     data = {}

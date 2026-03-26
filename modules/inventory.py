@@ -9,6 +9,8 @@ from PIL import Image, ImageTk, ImageEnhance, ImageFont, ImageDraw
 from modules.preferences import get_preference, set_preference
 from tkinter import colorchooser
 import requests
+import sys
+import os
 
 class ItemTypes(IntEnum):
     CountStruct = auto()
@@ -84,9 +86,15 @@ class Item:
 
 USE_COLOR_ICONS = True
 
+def resource_path(relative_path):
+    """Get absolute path to resource (works for dev + PyInstaller)"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 class IconCondition:
     def __init__(self, icon: str, condition = None, dim_if_true: bool = False):
-        self.icon = f"assets/{icon}"
+        self.icon = resource_path(f"assets/{icon}")
         if condition is None:
             self.condition = lambda: True
         else:
@@ -155,7 +163,7 @@ class CanvasImageLayer:
 
     def _draw_number(self, img, number):
         draw = ImageDraw.Draw(img)
-        font = ImageFont.truetype("assets/Roboto.ttf", max(12, int(img.width / 2)))
+        font = ImageFont.truetype(resource_path("assets/Roboto.ttf"), max(12, int(img.width / 2)))
 
         text = str(number)
 

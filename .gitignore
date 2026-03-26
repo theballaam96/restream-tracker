@@ -5,3 +5,6 @@ pb/
 cf/
 pb.zip
 test.py
+build/
+dist/
+release/

@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import threading
 import requests
@@ -539,11 +540,18 @@ def comms_ui():
 
 # ================= APP =================
 
+def resource_path(relative_path):
+    """Get absolute path to resource (works for dev + PyInstaller)"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 root = tk.Tk()
 root.title("Restream Tool")
 root.geometry("900x900")
-icon = tk.PhotoImage(file="krosshair.png")
-root.iconphoto(True, icon)
+img_path = resource_path("krosshair.png")
+photo = tk.PhotoImage(file=img_path)
+root.iconphoto(True, photo)
 
 main_menu()
 root.mainloop()
