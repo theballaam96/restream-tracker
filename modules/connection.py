@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from loader import attachWrapper, Emulators
+from modules.loader import attachWrapper, Emulators
 from modules.client import N64MemoryClient
 from modules.memory_map import DK64MemoryMap
 from modules.inventory import Inventory

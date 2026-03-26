@@ -32,15 +32,15 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile wrapper.py
+          pyinstaller --onefile krosshair.py
 
       - name: Rename output
         run: |
           mkdir release
           if [ "${{ runner.os }}" == "Windows" ]; then
-            mv dist/wrapper.exe release/wrapper-windows.exe
+            mv dist/krosshair.exe release/krosshair-windows.exe
           else
-            mv dist/wrapper release/wrapper-linux
+            mv dist/krosshair release/krosshair-linux
           fi
         shell: bash
 
@@ -65,6 +65,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/wrapper-*
+            artifacts/**/krosshair-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

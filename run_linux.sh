@@ -5,7 +5,7 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 VENV="$DIR/venv"
-PY_SCRIPT="$DIR/krossbones.py"
+PY_SCRIPT="$DIR/krosshair.py"
 
 # Create venv if needed
 if [ ! -d "$VENV" ]; then

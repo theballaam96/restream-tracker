@@ -1,5 +1,5 @@
 import struct
-from loader import EmulatorInfo, Emulators
+from modules.loader import EmulatorInfo, Emulators
 
 # Wrapper for N64 memory operations with proper address translation
 class N64MemoryClient:
@@ -11,7 +11,6 @@ class N64MemoryClient:
         """Read an unsigned 8-bit value with N64 address fixing."""
         fixed_address = self._fix_n64_address(address, 1)
         data = self.emulator_info.connected_process.read_bytes(fixed_address, 1, address)
-        print(hex(address), self.endianness, int.from_bytes(data, self.endianness), hex(self.read_u32(0x80755300)), hex(fixed_address))
         return int.from_bytes(data, self.endianness)
     
     def read_u16(self, address):
