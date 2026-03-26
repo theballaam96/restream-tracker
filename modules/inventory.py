@@ -155,7 +155,7 @@ class CanvasImageLayer:
 
     def _draw_number(self, img, number):
         draw = ImageDraw.Draw(img)
-        font = ImageFont.truetype("assets/Roboto.ttf", max(12, int(img.width / 3)))
+        font = ImageFont.truetype("assets/Roboto.ttf", max(12, int(img.width / 2)))
 
         text = str(number)
 
@@ -351,8 +351,8 @@ class Inventory(KrosshairCore):
             Item("Vine Swinging", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 4), "vine"),
             Item("Diving", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 7), "dive"),
             Item("Climbing", ItemTypes.Flag, FlagItem(0x29F), "climb"),
-            Item("Camera", ItemTypes.Flag, FlagItem(0x2FD), "camera"),
-            Item("Shockwave", ItemTypes.Flag, FlagItem(0x179), "shockwave"),
+            Item("Camera", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 3), "camera"),
+            Item("Shockwave", ItemTypes.CountStruct, CountStructItem(0x18, 1, True, 2), "shockwave"),
             Item("Slam", ItemTypes.KongBase, KongBaseItem(0, 1, 1, False), "slam"),
             Item("Homing", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 1), "homing"),
             Item("Sniper", ItemTypes.KongBase, KongBaseItem(0, 2, 1, True, 2), "sniper"),
@@ -419,6 +419,11 @@ class Inventory(KrosshairCore):
             Item("Fairies", ItemTypes.CountStruct, CountStructItem(0x10, 1, False), "fairies"),
             Item("Rainbow Coins", ItemTypes.CountStruct, CountStructItem(0x11, 1, False), "rainbow_coins"),
         ]
+        for level_index, level in enumerate(["japes", "aztec", "factory", "galleon", "fungi", "caves", "castle", "isles", "helm"]):
+            for kong_index, kong in enumerate(["dk", "diddy", "lanky", "tiny", "chunky"]):
+                self.item_data.append(
+                    Item(f"{kong} {level} GBs", ItemTypes.KongBase, KongBaseItem(kong_index, 0x42 + (2 * level_index), 2, False), f"gb_{kong}_{level}")
+                )
 
         self.icons = [
             Icon("Donkey Kong", 0, 0, [
@@ -441,44 +446,64 @@ class Inventory(KrosshairCore):
                 IconCondition("chunky/chunky.png", lambda: not self.active_state.chunky, True),
                 IconCondition("chunky/chunky.png", lambda: self.active_state.chunky, False),
             ]),
-            Icon("Barrel Throwing", 3 * COMPACT_SCALING, 5, [
+            Icon("Barrel Throwing", 3, 5, [
                 IconCondition("all_kong/barrel_throwing.png", lambda: not self.active_state.barrels, True),
                 IconCondition("all_kong/barrel_throwing.png", lambda: self.active_state.barrels, False),
-            ], is_compact=True),
-            Icon("Orange Throwing", 2 * COMPACT_SCALING, 5, [
+            ]),
+            Icon("Orange Throwing", 2, 5, [
                 IconCondition("all_kong/orange_throwing.png", lambda: not self.active_state.orange, True),
                 IconCondition("all_kong/orange_throwing.png", lambda: self.active_state.orange, False),
-            ], is_compact=True),
-            Icon("Vine Swinging", 4 * COMPACT_SCALING, 5, [
+            ]),
+            Icon("Vine Swinging", 4, 5, [
                 IconCondition("all_kong/vine_swinging.png", lambda: not self.active_state.vine, True),
                 IconCondition("all_kong/vine_swinging.png", lambda: self.active_state.vine, False),
-            ], is_compact=True),
-            Icon("Diving", 1 * COMPACT_SCALING, 5, [
+            ]),
+            Icon("Diving", 1, 5, [
                 IconCondition("all_kong/diving.png", lambda: not self.active_state.dive, True),
                 IconCondition("all_kong/diving.png", lambda: self.active_state.dive, False),
-            ], is_compact=True),
-            Icon("Climbing", 5 * COMPACT_SCALING, 5, [
+            ]),
+            Icon("Climbing", 5, 5, [
                 IconCondition("all_kong/climbing.png", lambda: not self.active_state.climb, True),
                 IconCondition("all_kong/climbing.png", lambda: self.active_state.climb, False),
-            ], is_compact=True),
-            Icon("Camera_Shockwave", 6 * COMPACT_SCALING, 5, [
-                IconCondition("shockwave_camera/filmwave.png", lambda: not self.active_state.camera and not self.active_state.shockwave, True),
-                IconCondition("shockwave_camera/filmwave.png", lambda: self.active_state.camera and self.active_state.shockwave, False),
-                IconCondition("shockwave_camera/fairycamonly.png", lambda: self.active_state.camera and not self.active_state.shockwave, False),
-                IconCondition("shockwave_camera/shockwaveonly.png", lambda: not self.active_state.camera and self.active_state.shockwave, False),
-            ], is_compact=True),
-            Icon("Slam", 0 * COMPACT_SCALING, 5, [
+            ]),
+            Icon("Camera", 2, 6, [
+                IconCondition("shockwave_camera/film.png", lambda: not self.active_state.camera, True),
+                IconCondition("shockwave_camera/film.png", lambda: self.active_state.camera, False),
+            ]),
+            Icon("Shockwave", 3, 6, [
+                IconCondition("shockwave_camera/shockwave.png", lambda: not self.active_state.shockwave, True),
+                IconCondition("shockwave_camera/shockwave.png", lambda: self.active_state.shockwave, False),
+            ]),
+            # Icon("Camera_Shockwave", 6 * COMPACT_SCALING, 5, [
+            #     IconCondition("shockwave_camera/filmwave.png", lambda: not self.active_state.camera and not self.active_state.shockwave, True),
+            #     IconCondition("shockwave_camera/filmwave.png", lambda: self.active_state.camera and self.active_state.shockwave, False),
+            #     IconCondition("shockwave_camera/fairycamonly.png", lambda: self.active_state.camera and not self.active_state.shockwave, False),
+            #     IconCondition("shockwave_camera/shockwaveonly.png", lambda: not self.active_state.camera and self.active_state.shockwave, False),
+            # ], is_compact=True),
+            Icon("Slam", 0, 5, [
                 IconCondition("slam/slam1.png", lambda: self.active_state.slam < 1, True),
                 IconCondition("slam/slam1.png", lambda: self.active_state.slam == 1, False),
                 IconCondition("slam/slam2.png", lambda: self.active_state.slam == 2, False),
                 IconCondition("slam/slam3.png", lambda: self.active_state.slam > 2, False),
-            ], is_compact=True),
-            Icon("Homing_Sniper", 7 * COMPACT_SCALING, 5, [
-                IconCondition("homing_sniper/homingscope.png", lambda: not self.active_state.homing and not self.active_state.sniper, True),
-                IconCondition("homing_sniper/homingscope.png", lambda: self.active_state.homing and self.active_state.sniper, False),
-                IconCondition("homing_sniper/homingonly.png", lambda: self.active_state.homing and not self.active_state.sniper, False),
-                IconCondition("homing_sniper/scopeonly.png", lambda: not self.active_state.homing and self.active_state.sniper, False),
-            ], is_compact=True),
+            ]),
+            Icon("GBs", 6, 5, [
+                IconCondition("plural_items/gb.png", lambda: self.active_state.getGBs() <= 0, True),
+                IconCondition("plural_items/gb.png", lambda: self.active_state.getGBs() > 0, False),
+            ], True, lambda: self.active_state.getGBs()),
+            Icon("Homing", 0, 6, [
+                IconCondition("homing_sniper/homing_ammo.png", lambda: not self.active_state.homing, True),
+                IconCondition("homing_sniper/homing_ammo.png", lambda: self.active_state.homing, False),
+            ]),
+            Icon("Sniper", 1, 6, [
+                IconCondition("homing_sniper/sniper_scope.png", lambda: not self.active_state.sniper, True),
+                IconCondition("homing_sniper/sniper_scope.png", lambda: self.active_state.sniper, False),
+            ]),
+            # Icon("Homing_Sniper", 7 * COMPACT_SCALING, 5, [
+            #     IconCondition("homing_sniper/homingscope.png", lambda: not self.active_state.homing and not self.active_state.sniper, True),
+            #     IconCondition("homing_sniper/homingscope.png", lambda: self.active_state.homing and self.active_state.sniper, False),
+            #     IconCondition("homing_sniper/homingonly.png", lambda: self.active_state.homing and not self.active_state.sniper, False),
+            #     IconCondition("homing_sniper/scopeonly.png", lambda: not self.active_state.homing and self.active_state.sniper, False),
+            # ], is_compact=True),
             Icon("Coconut", 1, 0, [
                 IconCondition("dk/dk_gun.png", lambda: not self.active_state.coconut, True),
                 IconCondition("dk/dk_gun.png", lambda: self.active_state.coconut, False),
@@ -597,51 +622,51 @@ class Inventory(KrosshairCore):
                 IconCondition("chunky/chunkypad_c.png", lambda: not self.active_state.gone and USE_COLOR_ICONS, True),
                 IconCondition("chunky/chunkypad_c.png", lambda: self.active_state.gone and USE_COLOR_ICONS, False),
             ]),
-            Icon("Key 1", 0.25 * WIDE_SCALING, 8, [
+            Icon("Key 1", 0.25 * WIDE_SCALING, 9, [
                 IconCondition("keys/k1.png", lambda: not self.active_state.key_1, True),
                 IconCondition("keys/k1.png", lambda: self.active_state.key_1, False),
             ]),
-            Icon("Key 2", 1.25 * WIDE_SCALING, 8, [
+            Icon("Key 2", 1.25 * WIDE_SCALING, 9, [
                 IconCondition("keys/k2.png", lambda: not self.active_state.key_2, True),
                 IconCondition("keys/k2.png", lambda: self.active_state.key_2, False),
             ]),
-            Icon("Key 3", 2.25 * WIDE_SCALING, 8, [
+            Icon("Key 3", 2.25 * WIDE_SCALING, 9, [
                 IconCondition("keys/k3.png", lambda: not self.active_state.key_3, True),
                 IconCondition("keys/k3.png", lambda: self.active_state.key_3, False),
             ]),
-            Icon("Key 4", 3.25 * WIDE_SCALING, 8, [
+            Icon("Key 4", 3.25 * WIDE_SCALING, 9, [
                 IconCondition("keys/k4.png", lambda: not self.active_state.key_4, True),
                 IconCondition("keys/k4.png", lambda: self.active_state.key_4, False),
             ]),
-            Icon("Key 5", 0.25 * WIDE_SCALING, 9, [
+            Icon("Key 5", 0.25 * WIDE_SCALING, 10, [
                 IconCondition("keys/k5.png", lambda: not self.active_state.key_5, True),
                 IconCondition("keys/k5.png", lambda: self.active_state.key_5, False),
             ]),
-            Icon("Key 6", 1.25 * WIDE_SCALING, 9, [
+            Icon("Key 6", 1.25 * WIDE_SCALING, 10, [
                 IconCondition("keys/k6.png", lambda: not self.active_state.key_6, True),
                 IconCondition("keys/k6.png", lambda: self.active_state.key_6, False),
             ]),
-            Icon("Key 7", 2.25 * WIDE_SCALING, 9, [
+            Icon("Key 7", 2.25 * WIDE_SCALING, 10, [
                 IconCondition("keys/k7.png", lambda: not self.active_state.key_7, True),
                 IconCondition("keys/k7.png", lambda: self.active_state.key_7, False),
             ]),
-            Icon("Key 8", 3.25 * WIDE_SCALING, 9, [
+            Icon("Key 8", 3.25 * WIDE_SCALING, 10, [
                 IconCondition("keys/k8.png", lambda: not self.active_state.key_8, True),
                 IconCondition("keys/k8.png", lambda: self.active_state.key_8, False),
             ]),
-            Icon("Cranky", 0.25 * WIDE_SCALING, 6, [
+            Icon("Cranky", 0.25 * WIDE_SCALING, 7, [
                 IconCondition("shopkeepers/cranky.png", lambda: not self.active_state.cranky, True),
                 IconCondition("shopkeepers/cranky.png", lambda: self.active_state.cranky, False),
             ]),
-            Icon("Funky", 1.25 * WIDE_SCALING, 6, [
+            Icon("Funky", 1.25 * WIDE_SCALING, 7, [
                 IconCondition("shopkeepers/funky.png", lambda: not self.active_state.funky, True),
                 IconCondition("shopkeepers/funky.png", lambda: self.active_state.funky, False),
             ]),
-            Icon("Candy", 2.25 * WIDE_SCALING, 6, [
+            Icon("Candy", 2.25 * WIDE_SCALING, 7, [
                 IconCondition("shopkeepers/candy.png", lambda: not self.active_state.candy, True),
                 IconCondition("shopkeepers/candy.png", lambda: self.active_state.candy, False),
             ]),
-            Icon("Snide", 3.25 * WIDE_SCALING, 6, [
+            Icon("Snide", 3.25 * WIDE_SCALING, 7, [
                 IconCondition("shopkeepers/snide.png", lambda: not self.active_state.snide, True),
                 IconCondition("shopkeepers/snide.png", lambda: self.active_state.snide, False),
             ]),
@@ -665,33 +690,33 @@ class Inventory(KrosshairCore):
                 IconCondition("chunky/chunky_bp.png", lambda: self.active_state.chunky_bps == self.active_state.chunky_turns, True),
                 IconCondition("chunky/chunky_bp.png", lambda: self.active_state.chunky_bps != self.active_state.chunky_turns, False),
             ], True, lambda: self.active_state.chunky_bps - self.active_state.chunky_turns),
-            Icon("Bean", 0, 7, [
+            Icon("Bean", 0, 8, [
                 IconCondition("all_kong/bean.png", lambda: not self.active_state.bean, True),
                 IconCondition("all_kong/bean.png", lambda: self.active_state.bean, False),
             ]),
-            Icon("Company Coins", 1, 7, [
+            Icon("Company Coins", 1, 8, [
                 IconCondition("company_coins/shared_coin.png", lambda: not self.active_state.nintendo_coin and not self.active_state.rareware_coin, True),
                 IconCondition("company_coins/shared_coin.png", lambda: self.active_state.nintendo_coin and self.active_state.rareware_coin, False),
                 IconCondition("company_coins/nin_only.png", lambda: self.active_state.nintendo_coin and not self.active_state.rareware_coin, False),
                 IconCondition("company_coins/rw_only.png", lambda: not self.active_state.nintendo_coin and self.active_state.rareware_coin, False),
             ]),
-            Icon("Crowns", 4, 7, [
+            Icon("Crowns", 4, 8, [
                 IconCondition("plural_items/crown.png", lambda: self.active_state.crowns < 1, True),
                 IconCondition("plural_items/crown.png", lambda: self.active_state.crowns > 0, False),
             ], True, lambda: self.active_state.crowns),
-            Icon("Medals", 6, 7, [
+            Icon("Medals", 6, 8, [
                 IconCondition("plural_items/bananamedal.png", lambda: self.active_state.medals < 1, True),
                 IconCondition("plural_items/bananamedal.png", lambda: self.active_state.medals > 0, False),
             ], True, lambda: self.active_state.medals),
-            Icon("Pearls", 2, 7, [
+            Icon("Pearls", 2, 8, [
                 IconCondition("plural_items/pearl.png", lambda: self.active_state.pearls < 1, True),
                 IconCondition("plural_items/pearl.png", lambda: self.active_state.pearls > 0, False),
             ], True, lambda: self.active_state.pearls),
-            Icon("Fairies", 5, 7, [
+            Icon("Fairies", 5, 8, [
                 IconCondition("plural_items/banana_fairies.png", lambda: self.active_state.fairies < 1, True),
                 IconCondition("plural_items/banana_fairies.png", lambda: self.active_state.fairies > 0, False),
             ], True, lambda: self.active_state.fairies),
-            Icon("Rainbow Coins", 3, 7, [
+            Icon("Rainbow Coins", 3, 8, [
                 IconCondition("plural_items/rainbowcoin.png", lambda: self.active_state.rainbow_coins < 1, True),
                 IconCondition("plural_items/rainbowcoin.png", lambda: self.active_state.rainbow_coins > 0, False),
             ], True, lambda: self.active_state.rainbow_coins),

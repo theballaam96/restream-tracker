@@ -95,6 +95,52 @@ class KrosshairState:
         self.lanky_turns = 0
         self.tiny_turns = 0
         self.chunky_turns = 0
+        # GBs
+        self.gb_dk_japes = 0
+        self.gb_dk_aztec = 0
+        self.gb_dk_factory = 0
+        self.gb_dk_galleon = 0
+        self.gb_dk_fungi = 0
+        self.gb_dk_caves = 0
+        self.gb_dk_castle = 0
+        self.gb_dk_isles = 0
+        self.gb_dk_helm = 0
+        self.gb_diddy_japes = 0
+        self.gb_diddy_aztec = 0
+        self.gb_diddy_factory = 0
+        self.gb_diddy_galleon = 0
+        self.gb_diddy_fungi = 0
+        self.gb_diddy_caves = 0
+        self.gb_diddy_castle = 0
+        self.gb_diddy_isles = 0
+        self.gb_diddy_helm = 0
+        self.gb_lanky_japes = 0
+        self.gb_lanky_aztec = 0
+        self.gb_lanky_factory = 0
+        self.gb_lanky_galleon = 0
+        self.gb_lanky_fungi = 0
+        self.gb_lanky_caves = 0
+        self.gb_lanky_castle = 0
+        self.gb_lanky_isles = 0
+        self.gb_lanky_helm = 0
+        self.gb_tiny_japes = 0
+        self.gb_tiny_aztec = 0
+        self.gb_tiny_factory = 0
+        self.gb_tiny_galleon = 0
+        self.gb_tiny_fungi = 0
+        self.gb_tiny_caves = 0
+        self.gb_tiny_castle = 0
+        self.gb_tiny_isles = 0
+        self.gb_tiny_helm = 0
+        self.gb_chunky_japes = 0
+        self.gb_chunky_aztec = 0
+        self.gb_chunky_factory = 0
+        self.gb_chunky_galleon = 0
+        self.gb_chunky_fungi = 0
+        self.gb_chunky_caves = 0
+        self.gb_chunky_castle = 0
+        self.gb_chunky_isles = 0
+        self.gb_chunky_helm = 0
 
     def derive_key(self, password: str, salt: bytes) -> bytes:
         kdf = Scrypt(
@@ -136,3 +182,11 @@ class KrosshairState:
     def decrypt(self, token: str, password: str) -> str:
         output_dict: dict = self.decryptInternals(token, password)
         self.__dict__.update(output_dict)
+
+    def getGBs(self) -> int:
+        dk_gbs = self.gb_dk_japes + self.gb_dk_aztec + self.gb_dk_factory + self.gb_dk_galleon + self.gb_dk_fungi + self.gb_dk_caves + self.gb_dk_castle + self.gb_dk_isles  + self.gb_dk_helm
+        diddy_gbs = self.gb_diddy_japes + self.gb_diddy_aztec + self.gb_diddy_factory + self.gb_diddy_galleon + self.gb_diddy_fungi + self.gb_diddy_caves + self.gb_diddy_castle + self.gb_diddy_isles + self.gb_diddy_helm
+        lanky_gbs = self.gb_lanky_japes + self.gb_lanky_aztec + self.gb_lanky_factory + self.gb_lanky_galleon + self.gb_lanky_fungi + self.gb_lanky_caves + self.gb_lanky_castle + self.gb_lanky_isles + self.gb_lanky_helm
+        tiny_gbs = self.gb_tiny_japes + self.gb_tiny_aztec + self.gb_tiny_factory + self.gb_tiny_galleon + self.gb_tiny_fungi + self.gb_tiny_caves + self.gb_tiny_castle + self.gb_tiny_isles + self.gb_tiny_helm
+        chunky_gbs = self.gb_chunky_japes + self.gb_chunky_aztec + self.gb_chunky_factory + self.gb_chunky_galleon + self.gb_chunky_fungi + self.gb_chunky_caves + self.gb_chunky_castle + self.gb_chunky_isles + self.gb_chunky_helm
+        return dk_gbs + diddy_gbs + lanky_gbs + tiny_gbs + chunky_gbs

@@ -225,7 +225,7 @@ def restreamer_ui(is_restreamer: bool = True):
 
     status = tk.StringVar(value="Idle")
     canvas_color = "green" if is_restreamer else "black"
-    canvas_height = 550
+    canvas_height = 600
 
     ttk.Label(root, text="Restreamer Host" if is_restreamer else "Commentary Crew", font=("Arial", 16)).pack()
     ttk.Label(root, textvariable=status).pack()
@@ -443,8 +443,8 @@ def restreamer_ui(is_restreamer: bool = True):
 
         threading.Thread(target=run).start()
 
-    ttk.Button(server_row, text="Start Server" if is_restreamer else "Start Connection", command=launch).pack()
-    ttk.Button(root, text="Back", command=main_menu).pack()
+    ttk.Button(server_row, text="Start Server" if is_restreamer else "Start Connection", command=launch).pack(side="left", padx=5)
+    ttk.Button(server_row, text="Back", command=main_menu).pack(side="left", padx=5)
 
 # ================= LOGIN =================
 
