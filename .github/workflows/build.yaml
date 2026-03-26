@@ -47,6 +47,7 @@ jobs:
             --hidden-import=PIL._tkinter_finder \
             --hidden-import=PIL.ImageTk \
             --collect-all PIL \
+            --collect-all cryptography \
             krosshair.py
 
       - name: Prepare release folder

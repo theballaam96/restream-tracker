@@ -32,6 +32,8 @@ def main():
         "--add-data", f"assets{sep}assets",
         "--hidden-import=PIL._tkinter_finder",
         "--hidden-import=PIL.ImageTk",
+        "--collect-all", "PIL",
+        "--collect-all", "cryptography",
         ENTRY_FILE
     ])
 
