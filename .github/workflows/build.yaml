@@ -28,17 +28,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyinstaller requests pillow
+          python -m pip install --upgrade pip
+          pip install pyinstaller requests pillow cryptography
 
       - name: Build executable
         shell: bash
         run: |
+          # Handle path separator differences
           SEP=":"
           if [ "$RUNNER_OS" = "Windows" ]; then
             SEP=";"
           fi
 
-          pyinstaller \
+          # Using python -m PyInstaller ensures we use the 3.11 environment
+          # Adding --clean matches your local test script behavior
+          python -m PyInstaller \
+            --clean \
             --onefile \
             --noconsole \
             --add-data "krosshair.png${SEP}." \
@@ -46,8 +51,6 @@ jobs:
             --add-data "assets${SEP}assets" \
             --hidden-import=PIL._tkinter_finder \
             --hidden-import=PIL.ImageTk \
-            --hidden-import=cryptography \
-            --hidden-import=cryptography.hazmat \
             --collect-all PIL \
             --collect-all cryptography \
             krosshair.py

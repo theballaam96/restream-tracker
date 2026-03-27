@@ -1,12 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('krosshair.png', '.'), ('default_preferences.json', '.'), ('assets', 'assets')]
+binaries = []
+hiddenimports = ['PIL._tkinter_finder', 'PIL.ImageTk', 'cryptography', 'cryptography.hazmat']
+tmp_ret = collect_all('PIL')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('cryptography')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['krosshair.py'],
     pathex=[],
-    binaries=[],
-    datas=[('krosshair.png', '.'), ('default_preferences.json', '.'), ('assets', 'assets')],
-    hiddenimports=['PIL._tkinter_finder', 'PIL.ImageTk'],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
