@@ -46,6 +46,8 @@ jobs:
             --add-data "assets${SEP}assets" \
             --hidden-import=PIL._tkinter_finder \
             --hidden-import=PIL.ImageTk \
+            --hidden-import=cryptography \
+            --hidden-import=cryptography.hazmat \
             --collect-all PIL \
             --collect-all cryptography \
             krosshair.py
