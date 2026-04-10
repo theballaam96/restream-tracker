@@ -12,6 +12,7 @@ import string
 import json
 import socket
 import secrets
+import platform
 from modules.connection import KBConnection
 from modules.inventory import Inventory
 
@@ -31,6 +32,8 @@ SERVER_PORT = None
 
 CF_DIR = "./cf"
 CF_EXE = os.path.join(CF_DIR, "cloudflared")
+if platform.system() == "Windows":
+    CF_EXE = os.path.join(CF_DIR, "cloudflared.exe")
 
 def ensure_cloudflared():
     if os.path.exists(CF_EXE):
@@ -39,6 +42,8 @@ def ensure_cloudflared():
     os.makedirs(CF_DIR, exist_ok=True)
 
     url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+    if platform.system() == "Windows":
+        url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-386.exe"
 
     print("Downloading cloudflared...")
     r = requests.get(url, stream=True)
