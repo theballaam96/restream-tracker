@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+import platform
 
 APP_NAME = "krosshair"
 ENTRY_FILE = "krosshair.py"
@@ -23,10 +24,13 @@ def main():
     # build with PyInstaller
     sep = ";" if sys.platform.startswith("win") else ":"
 
+    console_arg = "--noconsole"
+    if platform.system() == "Windows":
+        console_arg = "--console"
     run([
         sys.executable, "-m", "PyInstaller",
         "--onefile",
-        "--noconsole",
+        console_arg,
         "--clean",
         "--add-data", f"krosshair.png{sep}.",
         "--add-data", f"default_preferences.json{sep}.",

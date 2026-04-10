@@ -36,8 +36,10 @@ jobs:
         run: |
           # Handle path separator differences
           SEP=":"
+          CONSOLE="--noconsole"
           if [ "$RUNNER_OS" = "Windows" ]; then
             SEP=";"
+            CONSOLE="--console"
           fi
 
           # Using python -m PyInstaller ensures we use the 3.11 environment
@@ -45,7 +47,7 @@ jobs:
           python -m PyInstaller \
             --clean \
             --onefile \
-            --noconsole \
+            ${CONSOLE} \
             --add-data "krosshair.png${SEP}." \
             --add-data "default_preferences.json${SEP}." \
             --add-data "assets${SEP}assets" \

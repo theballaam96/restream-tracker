@@ -13,6 +13,7 @@ import json
 import socket
 import secrets
 import platform
+import queue
 from modules.connection import KBConnection
 from modules.inventory import Inventory
 
@@ -131,6 +132,18 @@ def start_server():
 
     server = HTTPServer(("127.0.0.1", SERVER_PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+
+def wait_for_server(port, timeout=5):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            r = requests.get(f"http://127.0.0.1:{port}/state")
+            if r.status_code == 200:
+                return True
+        except:
+            pass
+        time.sleep(0.1)
+    return False
 
 # ================= UTIL =================
 
@@ -365,24 +378,51 @@ def restreamer_ui(is_restreamer: bool = True):
                 start_server()
 
                 log(f"Server on port {SERVER_PORT}")
+                log("Waiting for server to be ready...")
+
+                if not wait_for_server(SERVER_PORT):
+                    log("Server failed to start")
+                    return
 
                 log("Preparing tunnel...")
                 ensure_cloudflared()
 
                 log("Starting tunnel...")
 
+                creationflags = 0
+                if platform.system() == "Windows":
+                    creationflags = subprocess.CREATE_NO_WINDOW
+
                 proc = subprocess.Popen(
-                    [CF_EXE, "tunnel", "--url", f"http://127.0.0.1:{SERVER_PORT}"],
+                    [CF_EXE, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{SERVER_PORT}"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
+                    bufsize=1,
+                    creationflags=creationflags
                 )
+
+                if platform.system() == "Windows":
+                    q = queue.Queue()
+
+                    def reader(pipe, q):
+                        for line in iter(pipe.readline, ''):
+                            q.put(line)
+                        pipe.close()
+
+                    threading.Thread(target=reader, args=(proc.stdout, q), daemon=True).start()
 
                 url = None
                 start = time.time()
 
                 while True:
-                    line = proc.stdout.readline()
+                    if platform.system() == "Windows":
+                        try:
+                            line = q.get(timeout=1)
+                        except queue.Empty:
+                            line = None
+                    else:
+                        line = proc.stdout.readline()
 
                     if line:
                         print(line.strip())
@@ -391,7 +431,7 @@ def restreamer_ui(is_restreamer: bool = True):
                             url = m.group(1)
                             break
 
-                    if time.time() - start > 15:
+                    if time.time() - start > 30:
                         break
 
                 if not url:

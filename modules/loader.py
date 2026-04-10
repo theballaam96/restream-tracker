@@ -513,7 +513,7 @@ class EmulatorInfo:
 
             try:
                 test_value = pm.read_int(addr)
-                print(hex(addr), ":", hex(test_value))
+                # print(hex(addr), ":", hex(test_value))
             except Exception:
                 continue
             if test_value != 0:
